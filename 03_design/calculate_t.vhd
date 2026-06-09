@@ -95,7 +95,7 @@ begin
             result => regen_result
         );
 
-     mul_decoded: poly_mul_mod2
+    mul_decoded: poly_mul_mod2
         generic map (
             g_num_samples => g_num_samples,
             g_num_phases => c_num_phases
