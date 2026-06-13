@@ -119,3 +119,70 @@ void shake256(uint8_t *out, size_t outlen,
             keccakf(st);
     }
 }
+
+uint64_t DecodeInt(const uint8_t *buf, size_t k_bits)
+{
+    uint64_t x = 0;
+
+    for (size_t i = 0; i < k_bits; i++) {
+        size_t byte_pos = i / 8;
+        size_t bit_pos  = i % 8;
+
+        uint64_t bit = (buf[byte_pos] >> bit_pos) & 1ULL;
+
+        x |= bit << i;
+    }
+
+    return x;
+}
+
+void EncodeInt(uint8_t *out, uint64_t x, size_t k_bits)
+{
+    size_t nbytes = (k_bits + 7) / 8;
+
+    for (size_t b = 0; b < nbytes; b++) {
+        out[b] = 0;
+    }
+
+    for (size_t i = 0; i < k_bits; i++) {
+        size_t byte_pos = i / 8;
+        size_t bit_pos  = i % 8;
+
+        out[byte_pos] |= ((x >> i) & 1ULL) << bit_pos;
+    }
+}
+
+void shake256w(uint64_t *w, size_t nwords,
+               const uint8_t *m, size_t mlen)
+{
+    uint8_t buf[8 * nwords];
+
+    shake256(buf, sizeof(buf), m, mlen);
+
+    for (size_t i = 0; i < nwords; i++) {
+        w[i] = DecodeInt(&buf[8 * i], 64);
+    }
+}
+
+void shake256x4(uint64_t *out, size_t nwords,
+                const uint8_t *m, size_t mlen)
+{
+    for (size_t j = 0; j < 4; j++) {
+
+        uint8_t msg_ext[mlen + 1];
+
+        for (size_t t = 0; t < mlen; t++) {
+            msg_ext[t] = m[t];
+        }
+
+        EncodeInt(&msg_ext[mlen], j, 8);
+
+        uint64_t tmp[nwords];
+
+        shake256w(tmp, nwords, msg_ext, mlen + 1);
+
+        for (size_t i = 0; i < nwords; i++) {
+            out[4 * i + j] = tmp[i];
+        }
+    }
+}
