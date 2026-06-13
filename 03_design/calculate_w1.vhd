@@ -14,10 +14,10 @@ entity calculate_w1 is
         rst_n       : in std_logic;
         start       : in std_logic;
         done        : out std_logic;
-        h0          : in std_logic_vector(g_num_samples - 1 downto 0);
-        h1          : in std_logic_vector(g_num_samples - 1 downto 0);
+        x0          : in std_logic_vector(g_num_samples - 1 downto 0);
+        x1          : in std_logic_vector(g_num_samples - 1 downto 0);
         f_regen     : in std_logic_vector(g_num_samples - 1 downto 0);
-        f_decoded   : in std_logic_vector(g_num_samples - 1 downto 0);
+        g_regen     : in std_logic_vector(g_num_samples - 1 downto 0);
         t           : out std_logic_vector(g_num_samples - 1 downto 0)
     );
 end entity calculate_w1;
@@ -33,19 +33,23 @@ signal regen_done_r : std_logic;
 signal decoded_done_r : std_logic;
 signal done_d : std_logic;
 
-component poly_mul_mod2
+component poly_mul
     generic (
-        g_num_samples : integer := 512;
-        g_num_phases : integer := 8
+        g_num_samples   : integer := 512;
+        g_data_width    : integer := 16;
+        g_addr_width    : integer := 9 -- Log2(g_num_samples)
     );
     port (
-        clk     : in std_logic;
-        rst_n   : in std_logic;
-        start   : in std_logic;
-        done    : out std_logic;
-        data_a  : in std_logic_vector(g_num_samples - 1 downto 0);
-        data_b  : in std_logic_vector(g_num_samples - 1 downto 0);
-        result  : out std_logic_vector(g_num_samples - 1 downto 0)
+        clk         : in std_logic;
+        rst_n       : in std_logic;
+        start       : in std_logic;
+        done        : out std_logic;
+        data_a      : in std_logic_vector(g_data_width - 1 downto 0);
+        data_b      : in std_logic_vector(g_data_width - 1 downto 0);
+        addr_a      : out std_logic_vector(g_num_samples - 1 downto 0);
+        addr_b      : out std_logic_vector(g_num_samples - 1 downto 0);
+        addr_result : out std_logic_vector(g_num_samples - 1 downto 0);
+        result      : out std_logic_vector(g_data_width - 1 downto 0)
     );
 end component;
 
@@ -80,7 +84,7 @@ begin
     t <= t_internal;
     done <= done_d;
 
-    mul_regen: poly_mul_mod2
+    mul_x0: poly_mul
         generic map (
             g_num_samples => g_num_samples,
             g_num_phases => c_num_phases
@@ -90,12 +94,12 @@ begin
             rst_n => rst_n,
             start => start,
             done => regen_done,
-            data_a => h0,
+            data_a => x0,
             data_b => f_regen,
             result => regen_result
         );
 
-    mul_decoded: poly_mul_mod2
+    mul_x1: poly_mul
         generic map (
             g_num_samples => g_num_samples,
             g_num_phases => c_num_phases
@@ -105,8 +109,8 @@ begin
             rst_n => rst_n,
             start => start,
             done => decoded_done,
-            data_a => h1,
-            data_b => f_decoded,
+            data_a => x1,
+            data_b => g_regen,
             result => decoded_result
         );
     

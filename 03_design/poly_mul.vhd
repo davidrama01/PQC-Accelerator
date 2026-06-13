@@ -6,8 +6,7 @@ entity poly_mul is
     generic (
         g_num_samples   : integer := 512;
         g_data_width    : integer := 16;
-        g_addr_width    : integer := 9; -- Log2(g_num_samples)
-        g_num_phases    : integer := 8
+        g_addr_width    : integer := 9 -- Log2(g_num_samples)
     );
     port (
         clk         : in std_logic;
