@@ -1,7 +1,6 @@
-#include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include "../05_software/shake256.h"
+#include "shake256.h"
+#include "encode.h"
+#include "decode.h"
 
 static void print_bytes(const uint8_t *buf, size_t len)
 {
