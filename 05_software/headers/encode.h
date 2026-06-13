@@ -20,11 +20,18 @@ int EncodePrivate(uint8_t *priv,
                   const uint8_t *G_mod2,
                   const uint8_t *hpub);
 
-int CompressGR(uint8_t *out,
-               size_t out_max_len,
-               size_t *out_len,
+int CompressGR(uint8_t *y,
+               size_t y_max_bytes,
+               size_t *y_len_bytes,
+               size_t *y_len_bits,
                const int16_t *x,
                size_t k,
                uint32_t low,
                uint32_t high);
+
+int EncodeSignature(uint8_t *sig,
+                    size_t sig_len,
+                    const uint8_t *salt,
+                    const int16_t *s1);
+                    
 #endif

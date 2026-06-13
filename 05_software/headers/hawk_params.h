@@ -148,6 +148,10 @@
 
 #define HAWK_SALTLEN_BYTES       (HAWK_SALTLEN_BITS / 8)
 
+#define HAWK_SAMPLER_Y_WORDS   ((5 * HAWK_N) / 2)
+
+#define HAWK_SAMPLER_X4_WORDS  (HAWK_SAMPLER_Y_WORDS / 4)
+
 /*
  * Tabla 4
  */
