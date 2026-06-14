@@ -18,19 +18,20 @@ entity calculate_w1 is
         x1          : in std_logic_vector(g_num_samples - 1 downto 0);
         f_regen     : in std_logic_vector(g_num_samples - 1 downto 0);
         g_regen     : in std_logic_vector(g_num_samples - 1 downto 0);
-        t           : out std_logic_vector(g_num_samples - 1 downto 0)
+        addr_a      : out std_logic_vector(g_num_samples - 1 downto 0);
+        addr_b      : out std_logic_vector(g_num_samples - 1 downto 0);
+        addr_result : out std_logic_vector(g_num_samples - 1 downto 0);
+        w1          : out std_logic_vector(g_num_samples - 1 downto 0)
     );
 end entity calculate_w1;
 
 architecture rtl of calculate_w1 is
 
-signal regen_result : std_logic_vector(g_num_samples - 1 downto 0);
-signal decoded_result : std_logic_vector(g_num_samples - 1 downto 0);
-signal t_internal : std_logic_vector(g_num_samples - 1 downto 0);
-signal regen_done : std_logic;
-signal decoded_done : std_logic;
-signal regen_done_r : std_logic;
-signal decoded_done_r : std_logic;
+signal mul0_result : std_logic_vector(g_num_samples - 1 downto 0);
+signal mul1_result : std_logic_vector(g_num_samples - 1 downto 0);
+signal w1_internal : signed(g_num_samples - 1 downto 0);
+signal mul0_done : std_logic;
+signal mul1_done : std_logic;
 signal done_d : std_logic;
 
 component poly_mul
@@ -57,61 +58,59 @@ begin
 
     calculate_process: process(clk, rst_n) begin
         if rst_n = '0' then
-            t_internal <= (others => '0');
+            w1_internal <= (others => '0');
             done_d <= '0';
-            regen_done_r <= '0';
-            decoded_done_r <= '0';
+            mul0_done_r <= '0';
+            mul1_done_r <= '0';
         elsif rising_edge(clk) then
-            if regen_done_r = '1' and decoded_done_r = '1' then
-                t_internal <= regen_result xor decoded_result;
+            if mul0_done = '1' and mul1_done = '1' then
+                w1_internal <= to_signed(mul0_result) - to_signed(mul1_result);
                 done_d <= '1';
-                regen_done_r <= '0';
-                decoded_done_r <= '0';
             else
                 done_d <= '0';
             end if; 
-
-            if regen_done = '1' then
-                regen_done_r <= '1';
-            end if;
-
-            if decoded_done = '1' then
-                decoded_done_r <= '1';
-            end if;
         end if;
     end process;
 
-    t <= t_internal;
+    w1 <= std_logic_vector(w1_internal);
     done <= done_d;
 
     mul_x0: poly_mul
         generic map (
             g_num_samples => g_num_samples,
-            g_num_phases => c_num_phases
+            g_data_width => g_data_width,
+            g_addr_width => g_addr_width
         )
         port map (
             clk => clk,
             rst_n => rst_n,
             start => start,
-            done => regen_done,
+            done => mul0_done,
+            addr_a => addr_a,
+            addr_b => addr_b,
+            addr_result => addr_result,
             data_a => x0,
             data_b => f_regen,
-            result => regen_result
+            result => mul0_result
         );
 
-    mul_x1: poly_mul
+    mul_x0: poly_mul
         generic map (
             g_num_samples => g_num_samples,
-            g_num_phases => c_num_phases
+            g_data_width => g_data_width,
+            g_addr_width => g_addr_width
         )
         port map (
             clk => clk,
             rst_n => rst_n,
             start => start,
-            done => decoded_done,
+            done => mul1_done,
+            addr_a => addr_a,
+            addr_b => addr_b,
+            addr_result => addr_result,
             data_a => x1,
             data_b => g_regen,
-            result => decoded_result
+            result => mul1_result
         );
     
     -- Multiplication logic here
