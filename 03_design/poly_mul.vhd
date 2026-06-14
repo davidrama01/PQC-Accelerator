@@ -26,8 +26,8 @@ architecture rtl of poly_mul is
 
 signal temp_result  : signed(2*g_data_width - 1 downto 0);
 signal acc          : signed(2*g_data_width - 1 downto 0);
-signal i            : integer range 0 to g_num_samples;
-signal j            : integer range 0 to g_num_samples;
+signal i            : integer range 0 to g_num_samples + 10;
+signal j            : integer range 0 to g_num_samples + 10;
 signal done_d       : std_logic;
 signal enable       : std_logic;
 
@@ -45,11 +45,11 @@ begin
         elsif rising_edge(clk) then
             done_d <= '0';
             if start = '1' then
-              i             <= 0;
-              j             <= 0;
-              acc           <= (others => '0');
-              enable        <= '1';
-              temp_result   <= (others => '0');
+                i             <= 0;
+                j             <= 0;
+                acc           <= (others => '0');
+                enable        <= '1';
+                temp_result   <= (others => '0');
             elsif enable = '1' then
                 if i < g_num_samples then
                     acc <= acc + (signed(data_a) * signed(data_b));
