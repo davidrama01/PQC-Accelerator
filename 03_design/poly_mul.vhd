@@ -60,8 +60,8 @@ begin
                     i           <= i + 1;
                     acc         <= (others => '0');
                     temp_result <= acc;
+                    done_d      <= '1';
                     if i >= g_num_samples - 1 then
-                        done_d  <= '1';
                         i       <= 0;
                         enable  <= '0';
                     end if;
