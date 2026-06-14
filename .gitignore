@@ -1,0 +1,27 @@
+# Vivado
+*.jou
+*.log
+*.pb
+*.rpt
+*.str
+*.wdb
+.Xil/
+*.xpr
+*.xsa
+*.xvd
+.IP_USER_FILES/
+managed_ip_project/
+.gen/
+.runs/
+.sim/
+
+# Vitis
+.vitis/
+*.elf
+*.bit
+*.rsa
+*.mcs
+*.prm
+hls/
+*.pb_files/
+
