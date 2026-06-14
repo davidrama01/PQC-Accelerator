@@ -15,9 +15,9 @@ entity poly_mul is
         done        : out std_logic;
         data_a      : in std_logic_vector(g_data_width - 1 downto 0);
         data_b      : in std_logic_vector(g_data_width - 1 downto 0);
-        addr_a      : out std_logic_vector(g_num_samples - 1 downto 0);
-        addr_b      : out std_logic_vector(g_num_samples - 1 downto 0);
-        addr_result : out std_logic_vector(g_num_samples - 1 downto 0);
+        addr_a      : out std_logic_vector(g_addr_width - 1 downto 0);
+        addr_b      : out std_logic_vector(g_addr_width - 1 downto 0);
+        addr_result : out std_logic_vector(g_addr_width - 1 downto 0);
         result      : out std_logic_vector(g_data_width - 1 downto 0)
     );
 end entity poly_mul;
