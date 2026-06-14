@@ -78,8 +78,8 @@ begin
     mul_x0: poly_mul
         generic map (
             g_num_samples => g_num_samples,
-            g_data_width => g_data_width,
-            g_addr_width => g_addr_width
+            g_data_width => c_data_width,
+            g_addr_width => c_addr_width
         )
         port map (
             clk => clk,
@@ -97,8 +97,8 @@ begin
     mul_x0: poly_mul
         generic map (
             g_num_samples => g_num_samples,
-            g_data_width => g_data_width,
-            g_addr_width => g_addr_width
+            g_data_width => c_data_width,
+            g_addr_width => c_addr_width
         )
         port map (
             clk => clk,
