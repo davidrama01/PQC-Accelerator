@@ -7,29 +7,31 @@ use work.hawk_pkg.all;
 
 entity calculate_w1 is
     generic (
-        g_num_samples : integer := 512
+        g_num_samples : integer := 512;
+        g_data_width  : integer := 16;
+        g_addr_width  : integer := 9;
     );
     port (
         clk         : in std_logic;
         rst_n       : in std_logic;
         start       : in std_logic;
         done        : out std_logic;
-        x0          : in std_logic_vector(g_num_samples - 1 downto 0);
-        x1          : in std_logic_vector(g_num_samples - 1 downto 0);
-        f_regen     : in std_logic_vector(g_num_samples - 1 downto 0);
-        g_regen     : in std_logic_vector(g_num_samples - 1 downto 0);
-        addr_a      : out std_logic_vector(g_num_samples - 1 downto 0);
-        addr_b      : out std_logic_vector(g_num_samples - 1 downto 0);
-        addr_result : out std_logic_vector(g_num_samples - 1 downto 0);
-        w1          : out std_logic_vector(g_num_samples - 1 downto 0)
+        x0          : in std_logic_vector(g_data_width - 1 downto 0);
+        x1          : in std_logic_vector(g_data_width - 1 downto 0);
+        f_regen     : in std_logic_vector(g_data_width - 1 downto 0);
+        g_regen     : in std_logic_vector(g_data_width - 1 downto 0);
+        addr_a      : out std_logic_vector(g_addr_width - 1 downto 0);
+        addr_b      : out std_logic_vector(g_addr_width - 1 downto 0);
+        addr_result : out std_logic_vector(g_addr_width - 1 downto 0);
+        w1          : out std_logic_vector(g_data_width - 1 downto 0)
     );
 end entity calculate_w1;
 
 architecture rtl of calculate_w1 is
 
-signal mul0_result : std_logic_vector(g_num_samples - 1 downto 0);
-signal mul1_result : std_logic_vector(g_num_samples - 1 downto 0);
-signal w1_internal : signed(g_num_samples - 1 downto 0);
+signal mul0_result : std_logic_vector(g_data_width - 1 downto 0);
+signal mul1_result : std_logic_vector(g_data_width - 1 downto 0);
+signal w1_internal : signed(g_data_width - 1 downto 0);
 signal mul0_done : std_logic;
 signal mul1_done : std_logic;
 signal done_d : std_logic;
@@ -47,9 +49,9 @@ component poly_mul
         done        : out std_logic;
         data_a      : in std_logic_vector(g_data_width - 1 downto 0);
         data_b      : in std_logic_vector(g_data_width - 1 downto 0);
-        addr_a      : out std_logic_vector(g_num_samples - 1 downto 0);
-        addr_b      : out std_logic_vector(g_num_samples - 1 downto 0);
-        addr_result : out std_logic_vector(g_num_samples - 1 downto 0);
+        addr_a      : out std_logic_vector(g_addr_width - 1 downto 0);
+        addr_b      : out std_logic_vector(g_addr_width - 1 downto 0);
+        addr_result : out std_logic_vector(g_addr_width - 1 downto 0);
         result      : out std_logic_vector(g_data_width - 1 downto 0)
     );
 end component;
@@ -79,7 +81,7 @@ begin
         generic map (
             g_num_samples => g_num_samples,
             g_data_width => c_data_width,
-            g_addr_width => c_addr_width
+            g_addr_width => g_addr_width
         )
         port map (
             clk => clk,
@@ -98,7 +100,7 @@ begin
         generic map (
             g_num_samples => g_num_samples,
             g_data_width => c_data_width,
-            g_addr_width => c_addr_width
+            g_addr_width => g_addr_width
         )
         port map (
             clk => clk,
