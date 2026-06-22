@@ -9,7 +9,7 @@ entity calculate_s1 is
     generic (
         g_num_samples : integer := 512;
         g_data_width  : integer := 16;
-        g_addr_width  : integer := 9;
+        g_addr_width  : integer := 9
     );
     port (
         clk         : in std_logic;
@@ -66,6 +66,7 @@ begin
 
     s1 <= std_logic_vector(s1_internal);
     done <= done_d;
+    ready <= ready_d;
     addr <= std_logic_vector(to_unsigned(addr_int, g_data_width));
     
     -- Multiplication logic here

@@ -9,7 +9,7 @@ entity calculate_w1 is
     generic (
         g_num_samples : integer := 512;
         g_data_width  : integer := 16;
-        g_addr_width  : integer := 9;
+        g_addr_width  : integer := 9
     );
     port (
         clk         : in std_logic;
