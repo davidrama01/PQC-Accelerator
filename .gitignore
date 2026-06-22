@@ -1,0 +1,40 @@
+# Vivado
+*.jou
+*.log
+*.pb
+*.rpt
+*.str
+*.wdb
+.Xil/
+*.xpr
+*.xsa
+*.xvd
+*.bda
+*.db
+*.wpc
+*.wdf
+*.xml
+*.bxml
+*.tcl
+*.lpr
+*.behav
+*.obj
+*.hawk_acc/
+
+.IP_USER_FILES/
+managed_ip_project/
+.gen/
+.runs/
+.sim/
+
+# Vitis
+.vitis/
+*.elf
+*.bit
+*.rsa
+*.mcs
+*.prm
+hls/
+*.pb_files/
+# Ignore Vivado files
+02_project/
