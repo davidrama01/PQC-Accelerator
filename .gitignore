@@ -9,6 +9,18 @@
 *.xpr
 *.xsa
 *.xvd
+*.bda
+*.db
+*.wpc
+*.wdf
+*.xml
+*.bxml
+*.tcl
+*.lpr
+*.behav
+*.obj
+*.hawk_acc/
+
 .IP_USER_FILES/
 managed_ip_project/
 .gen/
@@ -24,4 +36,5 @@ managed_ip_project/
 *.prm
 hls/
 *.pb_files/
-
+# Ignore Vivado files
+02_project/
