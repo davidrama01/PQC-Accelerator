@@ -56,7 +56,7 @@ begin
 	-- I/O Connections assignments
 
 	S_AXIS_TREADY	<= axis_tready;
-	data_received 	<= S_AXIS_TDATA;
+	data_received 	<= S_AXIS_TDATA when (S_AXIS_TVALID = '1' and axis_tready = '1') else (others => '0');
 	eot 			<= eot_d;
 	axis_tready 	<= '1' when mst_exec_state = RECEIVE_WORD else '0';
 
@@ -76,10 +76,12 @@ begin
 						mst_exec_state <= RECEIVE_WORD;
 					end if;
 				when RECEIVE_WORD =>
-					if S_AXIS_TLAST = '1' then
+					if S_AXIS_TLAST = '1' and S_AXIS_TVALID = '1' and axis_tready = '1' then
 						mst_exec_state 	<= IDLE;
 						eot_d 			<= '1';
 					end if;
+				when others =>
+					mst_exec_state <= IDLE;
 			end case;
 		end if;
 	end process;

@@ -4,20 +4,21 @@ use ieee.numeric_std.all;
 
 entity hawk_acc_v1_0_M00_AXIS is
 	generic (
-		-- Users to add parameters here
-
-		-- User parameters ends
-		-- Do not modify the parameters beyond this line
 
 		-- Width of S_AXIS address bus. The slave accepts the read and write addresses of width C_M_AXIS_TDATA_WIDTH.
-		C_M_AXIS_TDATA_WIDTH	: integer	:= 32;
-		-- Start count is the number of clock cycles the master will wait before initiating/issuing any transaction.
-		C_M_START_COUNT	: integer	:= 32
+		C_M_AXIS_TDATA_WIDTH	: integer	:= 32
 	);
 	port (
-		-- Users to add ports here
-
-		-- User ports ends
+		-- Start of transaction
+		sot 			: in std_logic;
+		-- End of transaction
+		eot 			: out std_logic;
+		-- Last word of the transaction
+		last_word 		: in std_logic;
+		-- Valid handshake of received data
+		valid 			: out std_logic;
+		-- Data output
+		data_sent 		: in std_logic_vector(C_M_AXIS_TDATA_WIDTH-1 downto 0);
 		-- Do not modify the ports beyond this line
 
 		-- Global ports
@@ -37,204 +38,55 @@ entity hawk_acc_v1_0_M00_AXIS is
 	);
 end hawk_acc_v1_0_M00_AXIS;
 
-architecture implementation of hawk_acc_v1_0_M00_AXIS is
-	-- Total number of output data                                              
-	constant NUMBER_OF_OUTPUT_WORDS : integer := 8;                                   
-
-	 -- function called clogb2 that returns an integer which has the   
-	 -- value of the ceiling of the log base 2.                              
-	function clogb2 (bit_depth : integer) return integer is                  
-	 	variable depth  : integer := bit_depth;                               
-	 	variable count  : integer := 1;                                       
-	 begin                                                                   
-	 	 for clogb2 in 1 to bit_depth loop  -- Works for up to 32 bit integers
-	      if (bit_depth <= 2) then                                           
-	        count := 1;                                                      
-	      else                                                               
-	        if(depth <= 1) then                                              
-	 	       count := count;                                                
-	 	     else                                                             
-	 	       depth := depth / 2;                                            
-	          count := count + 1;                                            
-	 	     end if;                                                          
-	 	   end if;                                                            
-	   end loop;                                                             
-	   return(count);        	                                              
-	 end;                                                                    
-
-	 -- WAIT_COUNT_BITS is the width of the wait counter.                       
-	 constant  WAIT_COUNT_BITS  : integer := clogb2(C_M_START_COUNT-1);               
-	                                                                                  
-	-- In this example, Depth of FIFO is determined by the greater of                 
-	-- the number of input words and output words.                                    
-	constant depth : integer := NUMBER_OF_OUTPUT_WORDS;                               
-	                                                                                  
-	-- bit_num gives the minimum number of bits needed to address 'depth' size of FIFO
-	constant bit_num : integer := clogb2(depth);                                      
+architecture implementation of hawk_acc_v1_0_M00_AXIS is                                                                                                      
 	                                                                                  
 	-- Define the states of state machine                                             
-	-- The control state machine oversees the writing of input streaming data to the FIFO,
-	-- and outputs the streaming data from the FIFO                                   
+	-- The control state machine oversees the data transfer 
+	--and the status of the transfer through the interface.                                   
 	type state is ( IDLE,        -- This is the initial/idle state                    
-	                INIT_COUNTER,  -- This state initializes the counter, once        
-	                                -- the counter reaches C_M_START_COUNT count,     
-	                                -- the state machine changes state to SEND_STREAM  
 	                SEND_STREAM);  -- In this state the                               
 	                             -- stream data is output through M_AXIS_TDATA        
 	-- State variable                                                                 
 	signal  mst_exec_state : state;                                                   
-	-- Example design FIFO read pointer                                               
-	signal read_pointer : integer range 0 to depth-1;                               
-
-	-- AXI Stream internal signals
-	--wait counter. The master waits for the user defined number of clock cycles before initiating a transfer.
-	signal count	: std_logic_vector(WAIT_COUNT_BITS-1 downto 0);
 	--streaming data valid
 	signal axis_tvalid	: std_logic;
-	--streaming data valid delayed by one clock cycle
-	signal axis_tvalid_delay	: std_logic;
-	--Last of the streaming data 
-	signal axis_tlast	: std_logic;
-	--Last of the streaming data delayed by one clock cycle
-	signal axis_tlast_delay	: std_logic;
-	--FIFO implementation signals
-	signal stream_data_out	: std_logic_vector(C_M_AXIS_TDATA_WIDTH-1 downto 0);
-	signal tx_en	: std_logic;
-	--The master has issued all the streaming data stored in FIFO
-	signal tx_done	: std_logic;
+	-- End of transaction register
+	signal eot_d	: std_logic;
 
 
 begin
 	-- I/O Connections assignments
 
-	M_AXIS_TVALID	<= axis_tvalid_delay;
-	M_AXIS_TDATA	<= stream_data_out;
-	M_AXIS_TLAST	<= axis_tlast_delay;
 	M_AXIS_TSTRB	<= (others => '1');
+	M_AXIS_TLAST	<= last_word when (axis_tvalid = '1' and M_AXIS_TREADY = '1') else '0';
+	M_AXIS_TVALID	<= axis_tvalid;
+	M_AXIS_TDATA	<= data_sent when (axis_tvalid = '1' and M_AXIS_TREADY = '1') else (others => '0');
+	axis_tvalid		<= '1' when mst_exec_state = SEND_STREAM else '0';
+	valid 			<= axis_tvalid and M_AXIS_TREADY;
+	eot 			<= eot_d;
 
 
 	-- Control state machine implementation                                               
-	process(M_AXIS_ACLK)                                                                        
-	begin                                                                                       
-	  if (rising_edge (M_AXIS_ACLK)) then                                                       
-	    if(M_AXIS_ARESETN = '0') then                                                           
-	      -- Synchronous reset (active low)                                                     
-	      mst_exec_state      <= IDLE;                                                          
-	      count <= (others => '0');                                                             
-	    else                                                                                    
-	      case (mst_exec_state) is                                                              
-	        when IDLE     =>                                                                    
-	          -- The slave starts accepting tdata when                                          
-	          -- there tvalid is asserted to mark the                                           
-	          -- presence of valid streaming data                                               
-	          --if (count = "0")then                                                            
-	            mst_exec_state <= INIT_COUNTER;                                                 
-	          --else                                                                              
-	          --  mst_exec_state <= IDLE;                                                         
-	          --end if;                                                                           
-	                                                                                            
-	          when INIT_COUNTER =>                                                              
-	            -- This state is responsible to wait for user defined C_M_START_COUNT           
-	            -- number of clock cycles.                                                      
-	            if ( count = std_logic_vector(to_unsigned((C_M_START_COUNT - 1), WAIT_COUNT_BITS))) then
-	              mst_exec_state  <= SEND_STREAM;                                               
-	            else                                                                            
-	              count <= std_logic_vector (unsigned(count) + 1);                              
-	              mst_exec_state  <= INIT_COUNTER;                                              
-	            end if;                                                                         
-	                                                                                            
-	        when SEND_STREAM  =>                                                                
-	          -- The example design streaming master functionality starts                       
-	          -- when the master drives output tdata from the FIFO and the slave                
-	          -- has finished storing the S_AXIS_TDATA                                          
-	          if (tx_done = '1') then                                                           
-	            mst_exec_state <= IDLE;                                                         
-	          else                                                                              
-	            mst_exec_state <= SEND_STREAM;                                                  
-	          end if;                                                                           
-	                                                                                            
-	        when others    =>                                                                   
-	          mst_exec_state <= IDLE;                                                           
-	                                                                                            
-	      end case;                                                                             
-	    end if;                                                                                 
-	  end if;                                                                                   
-	end process;                                                                                
-
-
-	--tvalid generation
-	--axis_tvalid is asserted when the control state machine's state is SEND_STREAM and
-	--number of output streaming data is less than the NUMBER_OF_OUTPUT_WORDS.
-	axis_tvalid <= '1' when ((mst_exec_state = SEND_STREAM) and (read_pointer < NUMBER_OF_OUTPUT_WORDS)) else '0';
-	                                                                                               
-	-- AXI tlast generation                                                                        
-	-- axis_tlast is asserted number of output streaming data is NUMBER_OF_OUTPUT_WORDS-1          
-	-- (0 to NUMBER_OF_OUTPUT_WORDS-1)                                                             
-	axis_tlast <= '1' when (read_pointer = NUMBER_OF_OUTPUT_WORDS-1) else '0';                     
-	                                                                                               
-	-- Delay the axis_tvalid and axis_tlast signal by one clock cycle                              
-	-- to match the latency of M_AXIS_TDATA                                                        
-	process(M_AXIS_ACLK)                                                                           
-	begin                                                                                          
-	  if (rising_edge (M_AXIS_ACLK)) then                                                          
-	    if(M_AXIS_ARESETN = '0') then                                                              
-	      axis_tvalid_delay <= '0';                                                                
-	      axis_tlast_delay <= '0';                                                                 
-	    else                                                                                       
-	      axis_tvalid_delay <= axis_tvalid;                                                        
-	      axis_tlast_delay <= axis_tlast;                                                          
-	    end if;                                                                                    
-	  end if;                                                                                      
-	end process;                                                                                   
-
-
-	--read_pointer pointer
-
-	process(M_AXIS_ACLK)                                                       
-	begin                                                                            
-	  if (rising_edge (M_AXIS_ACLK)) then                                            
-	    if(M_AXIS_ARESETN = '0') then                                                
-	      read_pointer <= 0;                                                         
-	      tx_done  <= '0';                                                           
-	    else                                                                         
-	      if (read_pointer <= NUMBER_OF_OUTPUT_WORDS-1) then                         
-	        if (tx_en = '1') then                                                    
-	          -- read pointer is incremented after every read from the FIFO          
-	          -- when FIFO read signal is enabled.                                   
-	          read_pointer <= read_pointer + 1;                                      
-	          tx_done <= '0';                                                        
-	        end if;                                                                  
-	      elsif (read_pointer = NUMBER_OF_OUTPUT_WORDS) then                         
-	        -- tx_done is asserted when NUMBER_OF_OUTPUT_WORDS numbers of streaming data
-	        -- has been out.                                                         
-	        tx_done <= '1';                                                          
-	      end  if;                                                                   
-	    end  if;                                                                     
-	  end  if;                                                                       
-	end process;                                                                     
-
-
-	--FIFO read enable generation 
-
-	tx_en <= M_AXIS_TREADY and axis_tvalid;                                   
-	                                                                                
-	-- FIFO Implementation                                                          
-	                                                                                
-	-- Streaming output data is read from FIFO                                      
-	  process(M_AXIS_ACLK)                                                          
-	  variable  sig_one : integer := 1;                                             
-	  begin                                                                         
-	    if (rising_edge (M_AXIS_ACLK)) then                                         
-	      if(M_AXIS_ARESETN = '0') then                                             
-	    	stream_data_out <= std_logic_vector(to_unsigned(sig_one,C_M_AXIS_TDATA_WIDTH));  
-	      elsif (tx_en = '1') then -- && M_AXIS_TSTRB(byte_index)                   
-	        stream_data_out <= std_logic_vector( to_unsigned(read_pointer,C_M_AXIS_TDATA_WIDTH) + to_unsigned(sig_one,C_M_AXIS_TDATA_WIDTH));
-	      end if;                                                                   
-	     end if;                                                                    
-	   end process;                                                                 
-
-	-- Add user logic here
-
-	-- User logic ends
+	process(M_AXIS_ACLK) begin                                                                                       
+		if M_AXIS_ARESETN = '0' then                                                                                     
+			mst_exec_state 	<= IDLE;
+			eot_d <= '0';
+		elsif rising_edge(M_AXIS_ACLK) then                                                                                
+			eot_d <= '0';
+			case mst_exec_state is                                                                                        
+				when IDLE =>                                                                                                
+					if sot = '1' then                                                                                         
+						mst_exec_state <= SEND_STREAM;
+					end if;                                                                                                                                                                           
+			 	when SEND_STREAM =>                                                                                           
+					if axis_tvalid = '1' and M_AXIS_TREADY = '1' and last_word = '1' then                                                                                
+						mst_exec_state <= IDLE;
+						eot_d <= '1';                                                                                 
+					end if;                                                                                                   
+				when others =>                                                                                               
+					mst_exec_state <= IDLE;                                                                                   
+			end case;                                                                                                      
+		end if;                                                                                    
+	end process;                                                                                                                                                                                                                                                                                                     
 
 end implementation;
