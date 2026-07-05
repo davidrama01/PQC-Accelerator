@@ -17,7 +17,7 @@ entity threshold is
         done        : out std_logic;
         x0          : in std_logic_vector(g_data_width - 1 downto 0);
         x1          : in std_logic_vector(g_data_width - 1 downto 0);
-        verify      : out std_logic;
+        verify      : out std_logic
     );
 end entity threshold;
 
