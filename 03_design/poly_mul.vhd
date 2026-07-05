@@ -6,8 +6,7 @@ entity poly_mul is
     generic (
         g_num_samples   : integer := 512;
         g_data_width    : integer := 16;
-        g_addr_width    : integer := 9; -- Log2(g_num_samples)
-        g_num_phases    : integer := 8
+        g_addr_width    : integer := 9 -- Log2(g_num_samples)
     );
     port (
         clk         : in std_logic;
@@ -16,9 +15,9 @@ entity poly_mul is
         done        : out std_logic;
         data_a      : in std_logic_vector(g_data_width - 1 downto 0);
         data_b      : in std_logic_vector(g_data_width - 1 downto 0);
-        addr_a      : out std_logic_vector(g_num_samples - 1 downto 0);
-        addr_b      : out std_logic_vector(g_num_samples - 1 downto 0);
-        addr_result : out std_logic_vector(g_num_samples - 1 downto 0);
+        addr_a      : out std_logic_vector(g_addr_width - 1 downto 0);
+        addr_b      : out std_logic_vector(g_addr_width - 1 downto 0);
+        addr_result : out std_logic_vector(g_addr_width - 1 downto 0);
         result      : out std_logic_vector(g_data_width - 1 downto 0)
     );
 end entity poly_mul;
@@ -27,8 +26,8 @@ architecture rtl of poly_mul is
 
 signal temp_result  : signed(2*g_data_width - 1 downto 0);
 signal acc          : signed(2*g_data_width - 1 downto 0);
-signal i            : integer range 0 to g_num_samples;
-signal j            : integer range 0 to g_num_samples;
+signal i            : integer range 0 to g_num_samples + 10;
+signal j            : integer range 0 to g_num_samples + 10;
 signal done_d       : std_logic;
 signal enable       : std_logic;
 
@@ -46,11 +45,11 @@ begin
         elsif rising_edge(clk) then
             done_d <= '0';
             if start = '1' then
-              i             <= 0;
-              j             <= 0;
-              acc           <= (others => '0');
-              enable        <= '1';
-              temp_result   <= (others => '0');
+                i             <= 0;
+                j             <= 0;
+                acc           <= (others => '0');
+                enable        <= '1';
+                temp_result   <= (others => '0');
             elsif enable = '1' then
                 if i < g_num_samples then
                     acc <= acc + (signed(data_a) * signed(data_b));
@@ -61,8 +60,8 @@ begin
                     i           <= i + 1;
                     acc         <= (others => '0');
                     temp_result <= acc;
+                    done_d      <= '1';
                     if i >= g_num_samples - 1 then
-                        done_d  <= '1';
                         i       <= 0;
                         enable  <= '0';
                     end if;
