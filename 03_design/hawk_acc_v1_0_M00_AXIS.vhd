@@ -16,9 +16,9 @@ entity hawk_acc_v1_0_M00_AXIS is
 		-- Last word of the transaction
 		last_word 		: in std_logic;
 		-- Valid handshake of received data
-		valid 			: out std_logic;
+		ack_mst 		: out std_logic;
 		-- Data output
-		data_sent 		: in std_logic_vector(C_M_AXIS_TDATA_WIDTH-1 downto 0);
+		data_mst 		: in std_logic_vector(C_M_AXIS_TDATA_WIDTH-1 downto 0);
 		-- Do not modify the ports beyond this line
 
 		-- Global ports
@@ -60,9 +60,9 @@ begin
 	M_AXIS_TSTRB	<= (others => '1');
 	M_AXIS_TLAST	<= last_word when (axis_tvalid = '1' and M_AXIS_TREADY = '1') else '0';
 	M_AXIS_TVALID	<= axis_tvalid;
-	M_AXIS_TDATA	<= data_sent when (axis_tvalid = '1' and M_AXIS_TREADY = '1') else (others => '0');
+	M_AXIS_TDATA	<= data_mst when (axis_tvalid = '1' and M_AXIS_TREADY = '1') else (others => '0');
 	axis_tvalid		<= '1' when mst_exec_state = SEND_STREAM else '0';
-	valid 			<= axis_tvalid and M_AXIS_TREADY;
+	ack_mst 		<= axis_tvalid and M_AXIS_TREADY;
 	eot 			<= eot_d;
 
 
