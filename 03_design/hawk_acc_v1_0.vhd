@@ -109,8 +109,8 @@ architecture arch_imp of hawk_acc_v1_0 is
 		port (
 		sot 			: in std_logic;
 		eot 			: out std_logic;
-		valid 			: out std_logic;
-		data_received 	: out std_logic_vector(C_S_AXIS_TDATA_WIDTH-1 downto 0);
+		ack_slv 		: out std_logic;
+		data_slv	 	: out std_logic_vector(C_S_AXIS_TDATA_WIDTH-1 downto 0);
 		S_AXIS_ACLK		: in std_logic;
 		S_AXIS_ARESETN	: in std_logic;
 		S_AXIS_TREADY	: out std_logic;
@@ -129,8 +129,8 @@ architecture arch_imp of hawk_acc_v1_0 is
 		sot 			: in std_logic;
 		eot 			: out std_logic;
 		last_word		: in std_logic;
-		valid 			: out std_logic;
-		data_sent 		: in std_logic_vector(C_M_AXIS_TDATA_WIDTH-1 downto 0);
+		ack_mst 		: out std_logic;
+		data_mst 		: in std_logic_vector(C_M_AXIS_TDATA_WIDTH-1 downto 0);
 		M_AXIS_ACLK		: in std_logic;
 		M_AXIS_ARESETN	: in std_logic;
 		M_AXIS_TVALID	: out std_logic;
@@ -141,16 +141,32 @@ architecture arch_imp of hawk_acc_v1_0 is
 		);
 	end component hawk_acc_v1_0_M00_AXIS;
 
-	signal start_slv : std_logic;
-	signal start_mst : std_logic;
-	signal done_slv : std_logic;
-	signal done_mst : std_logic;
-	signal valid_slv : std_logic;
-	signal valid_mst : std_logic;
-	signal data_received : std_logic_vector(C_S00_AXIS_TDATA_WIDTH-1 downto 0);
-	signal last_word : std_logic;
-	signal word_count : integer range 0 to 15 := 0;
-	signal enable_mst : std_logic;
+	component hawk_acc is
+		generic (
+			C_DATA_WIDTH : integer := 32
+		);
+		port (
+			clk         : in  std_logic;
+			rst_n       : in  std_logic;
+			data_slv    : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
+			data_mst    : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
+			ack_slv     : in  std_logic;
+			ack_mst     : in std_logic;
+			start_mst   : out std_logic
+		);
+	end component hawk_acc;
+
+	signal start_slv 	: std_logic;
+	signal start_mst 	: std_logic;
+	signal done_slv 	: std_logic;
+	signal done_mst 	: std_logic;
+	signal ack_slv 		: std_logic;
+	signal ack_mst 		: std_logic;
+	signal data_slv	 	: std_logic_vector(C_S00_AXIS_TDATA_WIDTH-1 downto 0);
+	signal data_mst	 	: std_logic_vector(C_M00_AXIS_TDATA_WIDTH-1 downto 0);
+	signal last_word 	: std_logic;
+	signal word_count 	: integer range 0 to 15 := 0;
+	signal enable_mst 	: std_logic;
 
 begin
 
@@ -165,7 +181,7 @@ begin
 			word_count <= 0;
 			last_word <= '0';
 			enable_mst <= '1';
-		elsif enable_mst = '1' and valid_mst = '1' and m00_axis_tready = '1' then
+		elsif enable_mst = '1' and ack_mst = '1' and m00_axis_tready = '1' then
 			if word_count = 15 then
 				last_word <= '1';
 				enable_mst <= '0';
@@ -218,8 +234,8 @@ hawk_acc_v1_0_S00_AXIS_inst : hawk_acc_v1_0_S00_AXIS
 	port map (
 		sot 			=> start_slv,
 		eot 			=> done_slv,
-		valid 			=> valid_slv,
-		data_received 	=> data_received,
+		ack_slv 		=> ack_slv,
+		data_slv	 	=> data_slv,
 		S_AXIS_ACLK		=> s00_axis_aclk,
 		S_AXIS_ARESETN	=> s00_axis_aresetn,
 		S_AXIS_TREADY	=> s00_axis_tready,
@@ -238,8 +254,8 @@ hawk_acc_v1_0_M00_AXIS_inst : hawk_acc_v1_0_M00_AXIS
 		sot 			=> start_mst,
 		eot 			=> done_mst,
 		last_word		=> last_word,
-		valid 			=> valid_mst,
-		data_sent 		=> data_received,
+		ack_mst 		=> ack_mst,
+		data_mst 		=> data_mst,
 		M_AXIS_ACLK		=> m00_axis_aclk,
 		M_AXIS_ARESETN	=> m00_axis_aresetn,
 		M_AXIS_TVALID	=> m00_axis_tvalid,
@@ -247,6 +263,21 @@ hawk_acc_v1_0_M00_AXIS_inst : hawk_acc_v1_0_M00_AXIS
 		M_AXIS_TSTRB	=> m00_axis_tstrb,
 		M_AXIS_TLAST	=> m00_axis_tlast,
 		M_AXIS_TREADY	=> m00_axis_tready
+	);
+
+-- Instantiation of the hawk_acc
+hawk_acc_inst : hawk_acc
+	generic map (
+		C_DATA_WIDTH => C_S00_AXIS_TDATA_WIDTH
+	)
+	port map (
+		clk         => m00_axis_aclk,
+		rst_n       => m00_axis_aresetn,
+		data_slv    => data_slv,
+		data_mst    => data_mst,
+		ack_slv     => ack_slv,
+		ack_mst     => ack_mst,
+		start_mst   => start_mst
 	);
 
 end arch_imp;
