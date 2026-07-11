@@ -19,7 +19,6 @@ entity hawk_acc_v1_0_S00_AXI is
 		done_slv : in std_logic;
 		done_mst : in std_logic;
 		start_slv : out std_logic;
-		start_mst : out std_logic;
 		-- User ports ends
 		-- Do not modify the ports beyond this line
 
@@ -756,7 +755,6 @@ begin
 
 	-- Add user logic here
 	start_slv <= slv_reg0(0);
-	start_mst <= slv_reg0(1);
 	-- User logic ends
 
 end arch_imp;
