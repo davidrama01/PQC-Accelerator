@@ -14,8 +14,8 @@ entity hawk_sign is
 		rst_n    : in  std_logic;
 		data_in  : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
 		data_out : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
-		ack_in   : in  std_logic,
-        ack_out  : in std_logic,
+		ack_in   : in  std_logic;
+        ack_out  : in std_logic;
         start_out : out std_logic
 	);
 end entity hawk_sign;
@@ -30,7 +30,7 @@ architecture rtl of hawk_sign is
         WRITE_GMOD2, 
         WRITE_F, 
         WRITE_G,
-        CALCULATE_T,
+        CALC_T,
         READ_T);
     signal current_state : state_t;
     signal next_state : state_t;
@@ -64,6 +64,52 @@ architecture rtl of hawk_sign is
     signal t1 : std_logic_vector(c_num_samples-1 downto 0);
     signal rd_t : std_logic;
 
+    signal ram_en       : std_logic;
+	signal ram_wea      : std_logic_vector(0 downto 0);
+	signal addr_f       : unsigned(8 downto 0);
+	signal ram_dina     : std_logic_vector(C_DATA_WIDTH-1 downto 0);
+	signal ram_doutf    : std_logic_vector(C_DATA_WIDTH-1 downto 0);
+    signal ram_doutg    : std_logic_vector(C_DATA_WIDTH-1 downto 0);
+
+    attribute MARK_DEBUG : string;
+    attribute MARK_DEBUG of current_state : signal is "TRUE";
+    attribute MARK_DEBUG of next_state : signal is "TRUE";
+    attribute MARK_DEBUG of wr_h0 : signal is "TRUE";
+    attribute MARK_DEBUG of wr_h1 : signal is "TRUE";
+    attribute MARK_DEBUG of wr_Fmod2 : signal is "TRUE";
+    attribute MARK_DEBUG of wr_Gmod2 : signal is "TRUE";
+    attribute MARK_DEBUG of wr_f : signal is "TRUE";
+    attribute MARK_DEBUG of wr_g : signal is "TRUE";
+    attribute MARK_DEBUG of cnt_Fmod2 : signal is "TRUE";
+    attribute MARK_DEBUG of cnt_Gmod2 : signal is "TRUE";
+    attribute MARK_DEBUG of cnt_h0 : signal is "TRUE";
+    attribute MARK_DEBUG of cnt_h1 : signal is "TRUE";
+    attribute MARK_DEBUG of cnt_f : signal is "TRUE";
+    attribute MARK_DEBUG of cnt_g : signal is "TRUE";
+    attribute MARK_DEBUG of cnt_t : signal is "TRUE";
+    attribute MARK_DEBUG of h0 : signal is "TRUE";
+    attribute MARK_DEBUG of h1 : signal is "TRUE";
+    attribute MARK_DEBUG of Fmod2 : signal is "TRUE";
+    attribute MARK_DEBUG of Gmod2 : signal is "TRUE";
+    attribute MARK_DEBUG of f_mod2 : signal is "TRUE";
+    attribute MARK_DEBUG of g_mod2 : signal is "TRUE";
+    attribute MARK_DEBUG of wea_f : signal is "TRUE";
+    attribute MARK_DEBUG of wea_g : signal is "TRUE";
+    attribute MARK_DEBUG of ram_addr_f : signal is "TRUE";
+    attribute MARK_DEBUG of ram_addr_g : signal is "TRUE";
+    attribute MARK_DEBUG of start_t : signal is "TRUE";
+    attribute MARK_DEBUG of done_t0 : signal is "TRUE";
+    attribute MARK_DEBUG of done_t1 : signal is "TRUE";
+    attribute MARK_DEBUG of t0 : signal is "TRUE";
+    attribute MARK_DEBUG of t1 : signal is "TRUE";
+    attribute MARK_DEBUG of rd_t : signal is "TRUE";
+    attribute MARK_DEBUG of ram_en : signal is "TRUE";
+    attribute MARK_DEBUG of ram_wea : signal is "TRUE";
+    attribute MARK_DEBUG of addr_f : signal is "TRUE";
+    attribute MARK_DEBUG of ram_dina : signal is "TRUE";
+    attribute MARK_DEBUG of ram_doutf : signal is "TRUE";
+    attribute MARK_DEBUG of ram_doutg : signal is "TRUE";
+
 	component blk_mem_gen_0
 		port (
 			clka  : in  std_logic;
@@ -91,27 +137,6 @@ architecture rtl of hawk_sign is
             t           : out std_logic_vector(g_num_samples - 1 downto 0)
         );
     end component;
-    generic (
-        g_num_samples : integer := 512
-    );
-    port (
-        clk         : in std_logic;
-        rst_n       : in std_logic;
-        start       : in std_logic;
-        done        : out std_logic;
-        h0          : in std_logic_vector(g_num_samples - 1 downto 0);
-        h1          : in std_logic_vector(g_num_samples - 1 downto 0);
-        f_regen     : in std_logic_vector(g_num_samples - 1 downto 0);
-        f_decoded   : in std_logic_vector(g_num_samples - 1 downto 0);
-        t           : out std_logic_vector(g_num_samples - 1 downto 0)
-    );
-
-	signal ram_en       : std_logic;
-	signal ram_wea      : std_logic_vector(0 downto 0);
-	signal addr_f       : unsigned(8 downto 0);
-	signal ram_dina     : std_logic_vector(C_DATA_WIDTH-1 downto 0);
-	signal ram_doutf    : std_logic_vector(C_DATA_WIDTH-1 downto 0);
-    signal ram_doutg    : std_logic_vector(C_DATA_WIDTH-1 downto 0);
 
 begin
     -----------------------------------------------
@@ -185,13 +210,13 @@ begin
                 if ack_in = '1' then
                     wr_g <= '1';
                     if cnt_g = c_num_samples - 1 then
-                        next_state <= CALCULATE_T;
+                        next_state <= CALC_T;
                         start_t <= '1';  -- Start the calculation of t
                     end if;
                 end if;
-            when CALCULATE_T =>
+            when CALC_T =>
                 if done_t0 = '1' and done_t1 = '1' then
-                    next_state <= IDLE;
+                    next_state <= READ_T;
                     start_out <= '1';  -- Indicate that the calculation is done
                 end if;
             when READ_T =>

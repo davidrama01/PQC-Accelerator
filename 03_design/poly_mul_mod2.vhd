@@ -5,7 +5,7 @@ use IEEE.NUMERIC_STD.ALL;
 entity poly_mul_mod2 is
     generic (
         g_num_samples : integer := 512;
-        g_num_phases : integer := 8
+        g_num_phases : integer := 1
     );
     port (
         clk : in std_logic;
@@ -26,6 +26,14 @@ signal j : integer range 0 to g_num_samples;
 signal acc : std_logic;
 signal done_d : std_logic;
 signal enable : std_logic;
+
+attribute MARK_DEBUG : string;
+attribute MARK_DEBUG of temp_result : signal is "true";
+attribute MARK_DEBUG of i : signal is "true";
+attribute MARK_DEBUG of j : signal is "true";
+attribute MARK_DEBUG of acc : signal is "true";
+attribute MARK_DEBUG of done_d : signal is "true";
+attribute MARK_DEBUG of enable : signal is "true";
 
 begin
     and_parallel_process : process(clk, rst_n)
