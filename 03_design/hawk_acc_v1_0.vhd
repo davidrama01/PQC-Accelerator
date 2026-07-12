@@ -77,7 +77,6 @@ architecture arch_imp of hawk_acc_v1_0 is
 		done_slv 		: in std_logic;
 		done_mst 		: in std_logic;
 		start_slv 		: out std_logic;
-		start_mst 		: out std_logic;
 		S_AXI_ACLK		: in std_logic;
 		S_AXI_ARESETN	: in std_logic;
 		S_AXI_AWADDR	: in std_logic_vector(C_S_AXI_ADDR_WIDTH-1 downto 0);
@@ -202,7 +201,6 @@ hawk_acc_v1_0_S00_AXI_inst : hawk_acc_v1_0_S00_AXI
 		done_slv 		=> done_slv,
 		done_mst 		=> done_mst,
 		start_slv 		=> start_slv,
-		start_mst 		=> start_mst,
 		S_AXI_ACLK		=> s00_axi_aclk,
 		S_AXI_ARESETN	=> s00_axi_aresetn,
 		S_AXI_AWADDR	=> s00_axi_awaddr,
