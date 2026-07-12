@@ -61,12 +61,13 @@
 #define REG0_OFFSET HAWK_ACC_S00_AXI_SLV_REG0_OFFSET
 #define REG1_OFFSET HAWK_ACC_S00_AXI_SLV_REG1_OFFSET
 
-#define NUM_WORDS       16
-#define NUM_BYTES       (NUM_WORDS * sizeof(u32))
+#define WORDS_PER_512BIT 16
+#define NUM_WORDS       (6 * WORDS_PER_512BIT)
+#define NUM_BYTES       (NUM_WORDS * sizeof(s32))
 
 static XAxiDma AxiDma;
 
-u32 tx_buffer[NUM_WORDS] __attribute__((aligned(64)));
+s32 tx_buffer[NUM_WORDS] __attribute__((aligned(64)));
 
 XStatus status;
 
@@ -95,13 +96,54 @@ int main()
 		return XST_FAILURE;
 	}
 
-	// Generar X datos de 32 bits
-	for (int i = 0; i < NUM_WORDS; i++) {
-		tx_buffer[i] = 0xA0000000 + i;
+	// Cada valor de 512 bits se reparte en 16 palabras de 32 bits
+	static const s32 h0_words[WORDS_PER_512BIT] = {0x10000001, 0x10000002, 0x10000003, 0x10000004,
+		0x10000005, 0x10000006, 0x10000007, 0x10000008,
+		0x10000009, 0x1000000A, 0x1000000B, 0x1000000C,
+		0x1000000D, 0x1000000E, 0x1000000F, 0x10000010};
+	static const s32 h1_words[WORDS_PER_512BIT] = {0x20000001, 0x20000002, 0x20000003, 0x20000004,
+		0x20000005, 0x20000006, 0x20000007, 0x20000008,
+		0x20000009, 0x2000000A, 0x2000000B, 0x2000000C,
+		0x2000000D, 0x2000000E, 0x2000000F, 0x20000010};
+	static const s32 fmod2_words[WORDS_PER_512BIT] = {0x30000001, 0x30000002, 0x30000003, 0x30000004,
+		0x30000005, 0x30000006, 0x30000007, 0x30000008,
+		0x30000009, 0x3000000A, 0x3000000B, 0x3000000C,
+		0x3000000D, 0x3000000E, 0x3000000F, 0x30000010};
+	static const s32 gmod2_words[WORDS_PER_512BIT] = {0x40000001, 0x40000002, 0x40000003, 0x40000004,
+		0x40000005, 0x40000006, 0x40000007, 0x40000008,
+		0x40000009, 0x4000000A, 0x4000000B, 0x4000000C,
+		0x4000000D, 0x4000000E, 0x4000000F, 0x40000010};
+	static s32 f_words[512];
+	static s32 g_words[512];
+
+	for (int i = 0; i < 512; i++) {
+		f_words[i] = (i % 5) - 4;
+		g_words[i] = 4 - (i % 5);
+	}
+
+	int word_index = 0;
+
+	for (int i = 0; i < WORDS_PER_512BIT; i++) {
+		tx_buffer[word_index++] = (s32)h0_words[i];
+	}
+	for (int i = 0; i < WORDS_PER_512BIT; i++) {
+		tx_buffer[word_index++] = (s32)h1_words[i];
+	}
+	for (int i = 0; i < WORDS_PER_512BIT; i++) {
+		tx_buffer[word_index++] = (s32)fmod2_words[i];
+	}
+	for (int i = 0; i < WORDS_PER_512BIT; i++) {
+		tx_buffer[word_index++] = (s32)gmod2_words[i];
+	}
+	for (int i = 0; i < 512; i++) {
+		tx_buffer[word_index++] = (s32)f_words[i];
+	}
+	for (int i = 0; i < 512; i++) {
+		tx_buffer[word_index++] = (s32)g_words[i];
 	}
 
 	// Importante si la caché está activada
-	Xil_DCacheFlushRange((UINTPTR)tx_buffer, NUM_BYTES);
+	Xil_DCacheFlushRange((UINTPTR)tx_buffer, NUM_BYTES+512+512);
 
     // Se activa la transferencias de datos de entrada
     HAWK_ACC_mWriteReg(AXI_LITE_ADDR, REG0_OFFSET, 1);
@@ -110,7 +152,7 @@ int main()
 	status = XAxiDma_SimpleTransfer(
 		&AxiDma,
 		(UINTPTR)tx_buffer,
-		NUM_BYTES,
+		NUM_BYTES+512+512,
 		XAXIDMA_DMA_TO_DEVICE
 	);
 
