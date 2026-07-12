@@ -36,7 +36,7 @@ signal done_d : std_logic;
 component poly_mul_mod2
     generic (
         g_num_samples : integer := 512;
-        g_num_phases : integer := 8
+        g_num_phases : integer := 1
     );
     port (
         clk     : in std_logic;
