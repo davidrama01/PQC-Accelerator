@@ -18,6 +18,7 @@ entity hawk_acc_v1_0_S00_AXI is
 		-- Users to add ports here
 		done_slv : in std_logic;
 		done_mst : in std_logic;
+		start_mst : in std_logic;
 		start_slv : out std_logic;
 		-- User ports ends
 		-- Do not modify the ports beyond this line
@@ -280,6 +281,7 @@ begin
 	      slv_reg0 <= (others => '0');
 		  slv_reg1(0) <= done_slv;
 	      slv_reg1(1) <= done_mst;
+		  slv_reg2(0) <= start_mst;
 		  loc_addr := axi_awaddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB);
 	      if (slv_reg_wren = '1') then
 	        case loc_addr is

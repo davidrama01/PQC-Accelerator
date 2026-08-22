@@ -15,7 +15,8 @@ entity hawk_sign is
 		data_in  : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
 		data_out : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
 		ack_in   : in  std_logic;
-        ack_out  : in std_logic;
+        valid     : out std_logic;
+        last_word : out std_logic;
         start_out : out std_logic
 	);
 end entity hawk_sign;
@@ -63,6 +64,7 @@ architecture rtl of hawk_sign is
     signal t0 : std_logic_vector(c_num_samples-1 downto 0);
     signal t1 : std_logic_vector(c_num_samples-1 downto 0);
     signal rd_t : std_logic;
+    signal last_word_int : std_logic;
 
     signal ram_en       : std_logic;
 	signal ram_wea      : std_logic_vector(0 downto 0);
@@ -80,35 +82,35 @@ architecture rtl of hawk_sign is
     attribute MARK_DEBUG of wr_Gmod2 : signal is "TRUE";
     attribute MARK_DEBUG of wr_f : signal is "TRUE";
     attribute MARK_DEBUG of wr_g : signal is "TRUE";
-    attribute MARK_DEBUG of cnt_Fmod2 : signal is "TRUE";
-    attribute MARK_DEBUG of cnt_Gmod2 : signal is "TRUE";
-    attribute MARK_DEBUG of cnt_h0 : signal is "TRUE";
-    attribute MARK_DEBUG of cnt_h1 : signal is "TRUE";
-    attribute MARK_DEBUG of cnt_f : signal is "TRUE";
-    attribute MARK_DEBUG of cnt_g : signal is "TRUE";
-    attribute MARK_DEBUG of cnt_t : signal is "TRUE";
+    -- attribute MARK_DEBUG of cnt_Fmod2 : signal is "TRUE";
+    -- attribute MARK_DEBUG of cnt_Gmod2 : signal is "TRUE";
+    -- attribute MARK_DEBUG of cnt_h0 : signal is "TRUE";
+    -- attribute MARK_DEBUG of cnt_h1 : signal is "TRUE";
+    -- attribute MARK_DEBUG of cnt_f : signal is "TRUE";
+    -- attribute MARK_DEBUG of cnt_g : signal is "TRUE";
+    -- attribute MARK_DEBUG of cnt_t : signal is "TRUE";
     attribute MARK_DEBUG of h0 : signal is "TRUE";
     attribute MARK_DEBUG of h1 : signal is "TRUE";
     attribute MARK_DEBUG of Fmod2 : signal is "TRUE";
-    attribute MARK_DEBUG of Gmod2 : signal is "TRUE";
+    -- attribute MARK_DEBUG of Gmod2 : signal is "TRUE";
     attribute MARK_DEBUG of f_mod2 : signal is "TRUE";
-    attribute MARK_DEBUG of g_mod2 : signal is "TRUE";
-    attribute MARK_DEBUG of wea_f : signal is "TRUE";
-    attribute MARK_DEBUG of wea_g : signal is "TRUE";
-    attribute MARK_DEBUG of ram_addr_f : signal is "TRUE";
-    attribute MARK_DEBUG of ram_addr_g : signal is "TRUE";
+    -- attribute MARK_DEBUG of g_mod2 : signal is "TRUE";
+    -- attribute MARK_DEBUG of wea_f : signal is "TRUE";
+    -- attribute MARK_DEBUG of wea_g : signal is "TRUE";
+    -- attribute MARK_DEBUG of ram_addr_f : signal is "TRUE";
+    -- attribute MARK_DEBUG of ram_addr_g : signal is "TRUE";
     attribute MARK_DEBUG of start_t : signal is "TRUE";
     attribute MARK_DEBUG of done_t0 : signal is "TRUE";
     attribute MARK_DEBUG of done_t1 : signal is "TRUE";
     attribute MARK_DEBUG of t0 : signal is "TRUE";
-    attribute MARK_DEBUG of t1 : signal is "TRUE";
+    -- attribute MARK_DEBUG of t1 : signal is "TRUE";
     attribute MARK_DEBUG of rd_t : signal is "TRUE";
-    attribute MARK_DEBUG of ram_en : signal is "TRUE";
-    attribute MARK_DEBUG of ram_wea : signal is "TRUE";
-    attribute MARK_DEBUG of addr_f : signal is "TRUE";
-    attribute MARK_DEBUG of ram_dina : signal is "TRUE";
-    attribute MARK_DEBUG of ram_doutf : signal is "TRUE";
-    attribute MARK_DEBUG of ram_doutg : signal is "TRUE";
+    -- attribute MARK_DEBUG of ram_en : signal is "TRUE";
+    -- attribute MARK_DEBUG of ram_wea : signal is "TRUE";
+    -- attribute MARK_DEBUG of addr_f : signal is "TRUE";
+    -- attribute MARK_DEBUG of ram_dina : signal is "TRUE";
+    -- attribute MARK_DEBUG of ram_doutf : signal is "TRUE";
+    -- attribute MARK_DEBUG of ram_doutg : signal is "TRUE";
 
 	component blk_mem_gen_0
 		port (
@@ -164,6 +166,7 @@ begin
         wr_g        <= '0';  -- Default value
         rd_t        <= '0';  -- Default value
         start_t     <= '0';  -- Default value
+        start_out   <= '0';  -- Default value
         next_state  <= current_state;  -- Default value
         case current_state is
             when IDLE =>
@@ -307,10 +310,18 @@ begin
                         cnt_t <= cnt_t + 1;
                         data_out <= t1((cnt_t-c_size_fifo+1)*C_DATA_WIDTH-1 downto (cnt_t-c_size_fifo)*C_DATA_WIDTH);
                     end if;
+                    if cnt_t == 2 * c_size_fifo - 1 then
+                        last_word_int <= '1';
+                    else
+                        last_word_int <= '0';
+                    end if;
                 end if;
             end if;
         end if;
     end process;
+
+    valid <= rd_t;  -- Valid when reading t
+    last_word <= last_word_int;  -- Indicate the last word when reading t
 
 	ram_en   <= '1';
     wea_f <= "1" when wr_f = '1' else "0";

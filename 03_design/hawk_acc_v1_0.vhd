@@ -76,6 +76,7 @@ architecture arch_imp of hawk_acc_v1_0 is
 		port (
 		done_slv 		: in std_logic;
 		done_mst 		: in std_logic;
+		start_mst 		: in std_logic;
 		start_slv 		: out std_logic;
 		S_AXI_ACLK		: in std_logic;
 		S_AXI_ARESETN	: in std_logic;
@@ -128,7 +129,7 @@ architecture arch_imp of hawk_acc_v1_0 is
 		sot 			: in std_logic;
 		eot 			: out std_logic;
 		last_word		: in std_logic;
-		ack_mst 		: out std_logic;
+		valid    		: out std_logic;
 		data_mst 		: in std_logic_vector(C_M_AXIS_TDATA_WIDTH-1 downto 0);
 		M_AXIS_ACLK		: in std_logic;
 		M_AXIS_ARESETN	: in std_logic;
@@ -150,7 +151,8 @@ architecture arch_imp of hawk_acc_v1_0 is
 			data_slv    : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
 			data_mst    : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
 			ack_slv     : in  std_logic;
-			ack_mst     : in std_logic;
+			valid     : out std_logic;
+			last_word   : out std_logic;
 			start_mst   : out std_logic
 		);
 	end component hawk_acc;
@@ -160,7 +162,7 @@ architecture arch_imp of hawk_acc_v1_0 is
 	signal done_slv 	: std_logic;
 	signal done_mst 	: std_logic;
 	signal ack_slv 		: std_logic;
-	signal ack_mst 		: std_logic;
+	signal valid 		: std_logic;
 	signal data_slv	 	: std_logic_vector(C_S00_AXIS_TDATA_WIDTH-1 downto 0);
 	signal data_mst	 	: std_logic_vector(C_M00_AXIS_TDATA_WIDTH-1 downto 0);
 	signal last_word 	: std_logic;
@@ -168,28 +170,6 @@ architecture arch_imp of hawk_acc_v1_0 is
 	signal enable_mst 	: std_logic;
 
 begin
-
-process(m00_axis_aclk)
-begin
-    if m00_axis_aresetn = '0' then
-        word_count <= 0;
-        last_word <= '0';
-		enable_mst <= '0';
-    elsif rising_edge(m00_axis_aclk) then
-        if start_mst = '1' then
-			word_count <= 0;
-			last_word <= '0';
-			enable_mst <= '1';
-		elsif enable_mst = '1' and ack_mst = '1' and m00_axis_tready = '1' then
-			if word_count = 15 then
-				last_word <= '1';
-				enable_mst <= '0';
-			else
-				word_count <= word_count + 1;
-			end if;
-		end if;
-	end if;
-end process;
 
 -- Instantiation of Axi Bus Interface S00_AXI
 hawk_acc_v1_0_S00_AXI_inst : hawk_acc_v1_0_S00_AXI
@@ -201,6 +181,7 @@ hawk_acc_v1_0_S00_AXI_inst : hawk_acc_v1_0_S00_AXI
 		done_slv 		=> done_slv,
 		done_mst 		=> done_mst,
 		start_slv 		=> start_slv,
+		start_mst 		=> start_mst,
 		S_AXI_ACLK		=> s00_axi_aclk,
 		S_AXI_ARESETN	=> s00_axi_aresetn,
 		S_AXI_AWADDR	=> s00_axi_awaddr,
@@ -252,7 +233,7 @@ hawk_acc_v1_0_M00_AXIS_inst : hawk_acc_v1_0_M00_AXIS
 		sot 			=> start_mst,
 		eot 			=> done_mst,
 		last_word		=> last_word,
-		ack_mst 		=> ack_mst,
+		valid    		=> valid,
 		data_mst 		=> data_mst,
 		M_AXIS_ACLK		=> m00_axis_aclk,
 		M_AXIS_ARESETN	=> m00_axis_aresetn,
@@ -274,7 +255,8 @@ hawk_acc_inst : hawk_acc
 		data_slv    => data_slv,
 		data_mst    => data_mst,
 		ack_slv     => ack_slv,
-		ack_mst     => ack_mst,
+		valid     => valid,
+		last_word   => last_word,
 		start_mst   => start_mst
 	);
 

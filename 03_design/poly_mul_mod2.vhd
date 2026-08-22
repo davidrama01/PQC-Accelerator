@@ -28,7 +28,7 @@ signal done_d : std_logic;
 signal enable : std_logic;
 
 attribute MARK_DEBUG : string;
-attribute MARK_DEBUG of temp_result : signal is "true";
+-- attribute MARK_DEBUG of temp_result : signal is "true";
 attribute MARK_DEBUG of i : signal is "true";
 attribute MARK_DEBUG of j : signal is "true";
 attribute MARK_DEBUG of acc : signal is "true";
