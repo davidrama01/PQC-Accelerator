@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdint.h>
 #include "shake256.h"
+#include "encode.h"
 
 #define SHAKE256_RATE 136
 
@@ -134,22 +135,6 @@ uint64_t DecodeInt(const uint8_t *buf, size_t k_bits)
     }
 
     return x;
-}
-
-void EncodeInt(uint8_t *out, uint64_t x, size_t k_bits)
-{
-    size_t nbytes = (k_bits + 7) / 8;
-
-    for (size_t b = 0; b < nbytes; b++) {
-        out[b] = 0;
-    }
-
-    for (size_t i = 0; i < k_bits; i++) {
-        size_t byte_pos = i / 8;
-        size_t bit_pos  = i % 8;
-
-        out[byte_pos] |= ((x >> i) & 1ULL) << bit_pos;
-    }
 }
 
 void shake256w(uint64_t *w, size_t nwords,

@@ -60,14 +60,16 @@
 #define AXI_LITE_ADDR XPAR_HAWK_ACC_0_S00_AXI_BASEADDR
 #define REG0_OFFSET HAWK_ACC_S00_AXI_SLV_REG0_OFFSET
 #define REG1_OFFSET HAWK_ACC_S00_AXI_SLV_REG1_OFFSET
+#define REG2_OFFSET HAWK_ACC_S00_AXI_SLV_REG2_OFFSET
 
 #define WORDS_PER_512BIT 16
-#define NUM_WORDS       (6 * WORDS_PER_512BIT)
+#define NUM_WORDS       (10 * WORDS_PER_512BIT + 512 + 512)
 #define NUM_BYTES       (NUM_WORDS * sizeof(s32))
 
 static XAxiDma AxiDma;
 
 s32 tx_buffer[NUM_WORDS] __attribute__((aligned(64)));
+s32 rx_buffer[NUM_WORDS] __attribute__((aligned(64)));
 
 XStatus status;
 
@@ -142,8 +144,10 @@ int main()
 		tx_buffer[word_index++] = (s32)g_words[i];
 	}
 
+	u32 bytes_to_transfer = (4 * WORDS_PER_512BIT + 512 + 512) * sizeof(s32);
+
 	// Importante si la caché está activada
-	Xil_DCacheFlushRange((UINTPTR)tx_buffer, NUM_BYTES+512+512);
+	Xil_DCacheFlushRange((UINTPTR)tx_buffer, NUM_BYTES);
 
     // Se activa la transferencias de datos de entrada
     HAWK_ACC_mWriteReg(AXI_LITE_ADDR, REG0_OFFSET, 1);
@@ -152,7 +156,7 @@ int main()
 	status = XAxiDma_SimpleTransfer(
 		&AxiDma,
 		(UINTPTR)tx_buffer,
-		NUM_BYTES+512+512,
+		bytes_to_transfer,
 		XAXIDMA_DMA_TO_DEVICE
 	);
 
@@ -165,7 +169,28 @@ int main()
 
 	xil_printf("DMA TX transfer completed\r\n");
 
-	//while(HAWK_ACC_mReadReg(XPAR_HAWK_ACC_0_S00_AXI_BASEADDR, HAWK_ACC_S00_AXI_SLV_REG1_OFFSET) != 1){}; //Se espera a que termine la suma (Done = 1)
+	bytes_to_transfer = (2 * WORDS_PER_512BIT) * sizeof(s32);
+
+	u32 start_mst = HAWK_ACC_mReadReg(AXI_LITE_ADDR, REG2_OFFSET);
+
+	while(start_mst != 1) {
+		start_mst = HAWK_ACC_mReadReg(AXI_LITE_ADDR, REG2_OFFSET);
+	}
+
+	// Enviar datos: DDR -> DMA -> AXI Stream -> PL
+	status = XAxiDma_SimpleTransfer(
+		&AxiDma,
+		(UINTPTR)rx_buffer,
+		bytes_to_transfer,
+		XAXIDMA_DEVICE_TO_DMA
+	);
+
+	if (status != XST_SUCCESS) {
+		xil_printf("DMA TX transfer failed\r\n");
+		return XST_FAILURE;
+	}
+
+	while (XAxiDma_Busy(&AxiDma, XAXIDMA_DEVICE_TO_DMA));
 
 	return XST_SUCCESS;
 

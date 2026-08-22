@@ -2,26 +2,32 @@
 #include "encode.h"
 #include "hawk_params.h"
 
-int EncodeInt(uint8_t *buf,
-              uint64_t x,
-              size_t k_bits)
+int EncodeInt(int8_t *buf, uint32_t x, uint32_t k_bits)
 {
-    size_t nbytes = (k_bits + 7) / 8;
-
-    if (buf == NULL || k_bits > 64) {
-        return -1;
+    if (x > (1 << k_bits) - 1) {
+        return -1; // Error: k_bits exceeds the size of uint32_t
     }
-
-    memset(buf, 0, nbytes);
-
-    for (size_t i = 0; i < k_bits; i++) {
-        size_t byte_pos = i / 8;
-        size_t bit_pos  = i % 8;
-
-        buf[byte_pos] |= (uint8_t)(((x >> i) & 1ULL) << bit_pos);
+    for (uint32_t i = 0; i < k_bits; i++) {
+        buf[i] = (x >> i) & 1U;
     }
-
     return 0;
+}
+
+void PackBits(uint8_t *out, const int8_t *bits, uint32_t number_bits)
+{
+    uint32_t number_bytes = (number_bits + 7U) / 8U;
+
+    for (uint32_t i = 0; i < number_bytes; i++) {
+        out[i] = 0;
+
+        for (uint32_t j = 0; j < 8U; j++) {
+            uint32_t bit_index = 8U * i + j;
+
+            if (bit_index < number_bits) {
+                out[i] |= (uint8_t)((bits[bit_index] & 1U) << j);
+            }
+        }
+    }
 }
 
 int EncodePrivate(uint8_t *priv,
@@ -31,255 +37,200 @@ int EncodePrivate(uint8_t *priv,
                   const uint8_t *G_mod2,
                   const uint8_t *hpub)
 {
+    if (priv == NULL || kgseed == NULL || F_mod2 == NULL || G_mod2 == NULL || hpub == NULL) {
+        return -1;
+    }
+
+    if (priv_len != HAWK_PRIV_BYTES) {
+        return -1;
+    }
     size_t offset = 0;
 
-    if (priv == NULL || kgseed == NULL || F_mod2 == NULL ||
-        G_mod2 == NULL || hpub == NULL) {
-        return -1;
-    }
+    memcpy(priv + offset, kgseed, HAWK_KGSEED_BYTES);
+    offset += HAWK_KGSEED_BYTES;
 
-    if (priv_len != HAWK512_PRIV_BYTES) {
-        return -2;
-    }
+    memcpy(priv + offset, F_mod2, HAWK_N_BYTES);
+    offset += HAWK_N_BYTES;
 
-    memcpy(priv + offset, kgseed, HAWK512_KGSEED_BYTES);
-    offset += HAWK512_KGSEED_BYTES;
+    memcpy(priv + offset, G_mod2, HAWK_N_BYTES);
+    offset += HAWK_N_BYTES;
 
-    memcpy(priv + offset, F_mod2, HAWK512_N_BYTES);
-    offset += HAWK512_N_BYTES;
-
-    memcpy(priv + offset, G_mod2, HAWK512_N_BYTES);
-    offset += HAWK512_N_BYTES;
-
-    memcpy(priv + offset, hpub, HAWK512_HPUB_BYTES);
-    offset += HAWK512_HPUB_BYTES;
-
+    memcpy(priv + offset, hpub, HAWK_HPUB_BYTES);
+    offset += HAWK_HPUB_BYTES;
     return 0;
 }
 
-static int AppendBit(uint8_t *y,
-                     size_t y_max_bytes,
-                     size_t *bit_len,
-                     uint8_t bit)
+int CompressGR(int8_t *y,
+               const int32_t *x,
+               uint32_t k,
+               uint32_t *y_len_bits,
+               uint8_t low,
+               uint8_t high)
 {
-    size_t byte_pos = (*bit_len) / 8;
-    size_t bit_pos  = (*bit_len) % 8;
-
-    if (byte_pos >= y_max_bytes) {
-        return -1;
-    }
-
-    if (bit) {
-        y[byte_pos] |= (uint8_t)(1U << bit_pos);
-    }
-
-    (*bit_len)++;
-
-    return 0;
-}
-
-static int AppendEncodeInt(uint8_t *y,
-                           size_t y_max_bytes,
-                           size_t *bit_len,
-                           uint64_t value,
-                           uint32_t k_bits)
-{
-    uint8_t tmp[8];
-
-    if (EncodeInt(tmp, value, k_bits) != 0) {
-        return -1;
-    }
-
-    for (uint32_t i = 0; i < k_bits; i++) {
-        uint8_t bit = (uint8_t)((tmp[i / 8] >> (i % 8)) & 1U);
-
-        if (AppendBit(y, y_max_bytes, bit_len, bit) != 0) {
-            return -2;
-        }
-    }
-
-    return 0;
-}
-
-int CompressGR(uint8_t *y,
-               size_t y_max_bytes,
-               size_t *y_len_bytes,
-               size_t *y_len_bits,
-               const int16_t *x,
-               size_t k,
-               uint32_t low,
-               uint32_t high)
-{
-    if (y == NULL || y_len_bytes == NULL || y_len_bits == NULL || x == NULL) {
-        return -1;
-    }
-    size_t bit_len = 0;
-    uint32_t v[HAWK_N];
-
-    if (y == NULL || y_len_bytes == NULL || x == NULL) {
-        return -1;
-    }
-
-    if (k > HAWK_N) {
-        return -2;
-    }
-
-    if (low > high || high >= 32) {
-        return -3;
-    }
-
-    memset(y, 0, y_max_bytes);
-
-    /*
-     * Lines 3-8:
-     * sign bits + computation of v[i]
-     */
-
-    for (size_t i = 0; i < k; i++) {
-        int32_t xi = x[i];
-        uint8_t s = (xi < 0) ? 1 : 0;
-
-        if (AppendBit(y, y_max_bytes, &bit_len, s) != 0) {
-            return -4;
-        }
-
-        /*
-         * v[i] = |x[i] - s(2x[i] + 1)|
-         */
-        int32_t tmp = xi - ((int32_t)s * (2 * xi + 1));
-
-        if (tmp < 0) {
-            tmp = -tmp;
-        }
-
-        v[i] = (uint32_t)tmp;
-
-        if (v[i] >= (1UL << high)) {
-            return -5;
-        }
-    }
-
-    /*
-     * Lines 9-10:
-     * y <- y || EncodeInt(v[i] mod 2^low, low)
-     */
-
-    for (size_t i = 0; i < k; i++) {
-        uint32_t low_part;
-
-        if (low == 0) {
-            low_part = 0;
+    int8_t s;
+    int32_t v[k];
+    int32_t offset = 0;
+    int8_t v_encode[k];
+    for (uint32_t i = 0; i < k; i++) {
+        if (x[i] < 0) {
+            s = 1;
         } else {
-            low_part = v[i] & ((1UL << low) - 1U);
+            s = 0;
         }
+        y[offset++] = s;
+        v[i] = x[i] - s*(2*x[i] + 1);
 
-        if (AppendEncodeInt(y,
-                            y_max_bytes,
-                            &bit_len,
-                            low_part,
-                            low) != 0) {
-            return -6;
+        if (v[i] >= (1LL << high)) {
+            return -1;
+        }
+    }
+    for (uint32_t i = 0; i < k; i++) {
+        EncodeInt(v_encode, v[i] % (1LL << low), low);
+        for (uint32_t j = 0; j < low; j++) {
+            y[offset++] = v_encode[j];
         }
     }
 
-    /*
-     * Lines 11-12:
-     * y <- y || EncodeInt(0, floor(v[i]/2^low)) || 1
-     */
-
-    for (size_t i = 0; i < k; i++) {
-        uint32_t q = v[i] >> low;
-
-        if (AppendEncodeInt(y,
-                            y_max_bytes,
-                            &bit_len,
-                            0,
-                            q) != 0) {
-            return -7;
+    for (uint32_t i = 0; i < k; i++) {
+        EncodeInt(v_encode, 0, v[i] >> low);
+        for (uint32_t j = 0; j < v[i] >> low; j++) {
+            y[offset++] = v_encode[j];
         }
-
-        if (AppendBit(y, y_max_bytes, &bit_len, 1) != 0) {
-            return -8;
-        }
+        y[offset++] = 1;
     }
 
-    *y_len_bits = bit_len;
-    *y_len_bytes = (bit_len + 7) / 8;
+    *y_len_bits = offset;
 
+    return 0;
+}
+
+int EncodePublic(uint8_t *pub, int32_t *q00, int32_t *q01, uint32_t n)
+{
+    if (n != HAWK_N) {
+        return -1;
+    }
+    
+    //-------------------------------------------------------------------
+    //-------------------------------------------------------------------
+    // Calculate q00
+    //-------------------------------------------------------------------
+    //-------------------------------------------------------------------
+    uint32_t y00_len_bits = 0;
+    if (q00[0] < -(1 << 15) || q00[0] >= (1 << 15)) {
+        return -1;
+    }
+    int32_t v = 16 - HAWK_Q00_HIGH_BITS;
+    int32_t q00_half[n / 2U];
+
+    for (uint32_t i = 0; i < n / 2U; i++) {
+        q00_half[i] = q00[i];
+    }
+
+    int32_t divisor = 1 << v;
+
+    q00_half[0] = q00[0] / divisor;
+
+    if (q00[0] < 0 && (q00[0] % divisor) != 0) {
+        q00_half[0]--;
+    }
+    //-------------------------------------------------------------------
+    //-------------------------------------------------------------------
+    // Calculate y00
+    //-------------------------------------------------------------------
+    //-------------------------------------------------------------------
+    int8_t y00[Y00_MAX_BITS + v + 7U];
+    int result = CompressGR(y00, q00_half, n/2, &y00_len_bits, HAWK_Q00_LOW_BITS, HAWK_Q00_HIGH_BITS);
+    if (result != 0) {
+        return -1;
+    }
+
+    int32_t q00_low = q00[0] % divisor;
+
+    if (q00_low < 0) {
+        q00_low += divisor;
+    }
+
+    if (EncodeInt(y00 + y00_len_bits, (uint32_t)q00_low, v) != 0) {
+        return -1;
+    }
+
+    y00_len_bits += v;
+
+    while ((y00_len_bits % 8U) != 0U) {
+        y00[y00_len_bits++] = 0;
+    }
+
+    //-------------------------------------------------------------------
+    //-------------------------------------------------------------------
+    // Calculate y01
+    //-------------------------------------------------------------------
+    //-------------------------------------------------------------------
+    int8_t y01[Y01_MAX_BITS];
+    uint32_t y01_len_bits = 0;
+    result = CompressGR(y01, q01, n, &y01_len_bits, HAWK_Q01_LOW_BITS, HAWK_Q01_HIGH_BITS);
+    if (result != 0) {
+        return -1;
+    }
+    //-------------------------------------------------------------------
+    //-------------------------------------------------------------------
+    // Calculate y
+    //-------------------------------------------------------------------
+    //-------------------------------------------------------------------
+    uint32_t publen_bits = HAWK_PUB_BYTES * 8U;
+
+    if (y00_len_bits > publen_bits ||
+        y01_len_bits > publen_bits - y00_len_bits) {
+        return -1;
+    }
+
+    uint32_t total_len_bits = 0;
+    int8_t pub_buffer[publen_bits];
+
+    for (uint32_t i = 0; i < y00_len_bits; i++) {
+        pub_buffer[total_len_bits++] = y00[i];
+    }
+
+    for (uint32_t i = 0; i < y01_len_bits; i++) {
+        pub_buffer[total_len_bits++] = y01[i];
+    }
+
+    while (total_len_bits < publen_bits) {
+        pub_buffer[total_len_bits++] = 0;
+    }
+
+    PackBits(pub, pub_buffer, publen_bits);
     return 0;
 }
 
 int EncodeSignature(uint8_t *sig,
-                    size_t sig_len,
+                    uint32_t sig_len_bits,
                     const uint8_t *salt,
-                    const int16_t *s1)
+                    const int32_t *s1)
 {
-    uint8_t y[HAWK_SIG_BYTES];
-    size_t y_len_bytes = 0;
-    size_t y_len_bits = 0;
+    uint32_t y_len_bits = 0;
 
-    size_t max_y_bits;
-    size_t max_y_bytes;
+    int8_t y[YS1_MAX_BITS];
 
-    if (sig == NULL || salt == NULL || s1 == NULL) {
+    if (sig_len_bits != HAWK_SIG_BYTES * 8U) {
         return -1;
     }
 
-    if (sig_len != HAWK_SIG_BYTES) {
-        return -2;
+    int result_GR = CompressGR(y, s1, HAWK_N, &y_len_bits, HAWK_S1_LOW_BITS, HAWK_S1_HIGH_BITS);
+    if (result_GR != 0 || y_len_bits > sig_len_bits - HAWK_SALTLEN_BITS) {
+        return -1;
     }
 
-    memset(sig, 0, sig_len);
-    memset(y, 0, sizeof(y));
-
-    /*
-     * Algorithm 10, line 1:
-     * y <- CompressGR(s1, lows1, highs1)
-     */
-
-    max_y_bits =
-        (HAWK_SIG_BYTES * 8) - HAWK_SALTLEN_BITS;
-
-    max_y_bytes =
-        (max_y_bits + 7) / 8;
-
-    int ret = CompressGR(y,
-                         max_y_bytes,
-                         &y_len_bytes,
-                         &y_len_bits,
-                         s1,
-                         HAWK_N,
-                         HAWK_S1_LOW_BITS,
-                         HAWK_S1_HIGH_BITS);
-
-    /*
-     * Algorithm 10, lines 2-3:
-     * if y = ⊥ or lenbits(y) > siglenbits - saltlenbits return ⊥
-     */
-
-    if (ret != 0) {
-        return -3;
+    while (y_len_bits < (sig_len_bits - HAWK_SALTLEN_BITS)) {
+        y[y_len_bits++] = 0;
     }
+    uint32_t y_len_bytes = y_len_bits / 8;
+    uint8_t y_bytes[y_len_bytes];
+    PackBits(y_bytes, y, y_len_bits);
 
-    if (y_len_bits > max_y_bits) {
-        return -4;
-    }
-
-    /*
-     * Algorithm 10, lines 4-5:
-     * while lenbits(y) < siglenbits - saltlenbits do
-     *     y <- y || 0
-     *
-     * Como sig[] ya está inicializado a cero, el padding a 0 queda implícito.
-     */
-
-    /*
-     * Algorithm 10, line 6:
-     * return salt || y
-     */
-
+    /* sig = salt || y */
     memcpy(sig, salt, HAWK_SALTLEN_BYTES);
-    memcpy(sig + HAWK_SALTLEN_BYTES, y, y_len_bytes);
+
+    memcpy(sig + HAWK_SALTLEN_BYTES, y_bytes, y_len_bytes);
 
     return 0;
 }

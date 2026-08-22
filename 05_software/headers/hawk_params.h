@@ -1,5 +1,6 @@
 #ifndef HAWK_PARAMS_H
 #define HAWK_PARAMS_H
+#include <math.h>
 
 /*
  * ============================================================
@@ -92,6 +93,7 @@
 
     #define HAWK_BETA0_NUM           1
     #define HAWK_BETA0_DEN           1000
+    #define HAWK_BETA0               HAWK_BETA0_NUM / HAWK_BETA0_DEN
 
 #endif
 
@@ -151,6 +153,26 @@
 #define HAWK_SAMPLER_Y_WORDS   ((5 * HAWK_N) / 2)
 
 #define HAWK_SAMPLER_X4_WORDS  (HAWK_SAMPLER_Y_WORDS / 4)
+
+#define LOG_BITS                log2_uint(HAWK_N)
+
+#define P1                      2147473409
+
+#define G1                      3
+
+#define P2                      2147389441
+
+#define G2                      11
+
+#define PI                      3.14159265358979323846264338327950288
+
+#define DELTA_ANGLE             2.0 * PI / 2048.0
+
+#define Y00_MAX_BITS (HAWK_N / 2U) *(1U + HAWK_Q00_LOW_BITS + (1U << (HAWK_Q00_HIGH_BITS - HAWK_Q00_LOW_BITS)))
+
+#define Y01_MAX_BITS (HAWK_N) *(1U + HAWK_Q01_LOW_BITS + (1U << (HAWK_Q01_HIGH_BITS - HAWK_Q01_LOW_BITS)))
+
+#define YS1_MAX_BITS ((HAWK_N) * (1U + HAWK_S1_LOW_BITS + (1U << (HAWK_S1_HIGH_BITS - HAWK_S1_LOW_BITS))))
 
 /*
  * Tabla 4

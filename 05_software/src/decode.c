@@ -2,21 +2,13 @@
 #include "decode.h"
 #include "hawk_params.h"
 
-uint64_t DecodeInt(const uint8_t *buf,
-                   size_t k_bits)
+uint32_t DecodeInt(const int8_t *bits,
+                   uint32_t k_bits)
 {
-    uint64_t x = 0;
+    uint32_t x = 0;
 
-    if (buf == NULL || k_bits > 64) {
-        return 0;
-    }
-
-    for (size_t i = 0; i < k_bits; i++) {
-        size_t byte_pos = i / 8;
-        size_t bit_pos  = i % 8;
-
-        uint64_t bit = (buf[byte_pos] >> bit_pos) & 1ULL;
-        x |= bit << i;
+    for (uint32_t i = 0; i < k_bits; i++) {
+        x |= ((uint32_t)bits[i] & 1U) << i;
     }
 
     return x;

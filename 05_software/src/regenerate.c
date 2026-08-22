@@ -1,5 +1,6 @@
 #include "regenerate.h"
 #include "shake256.h"
+#include <stdio.h>
 
 static uint8_t get_bit_from_u64_array(const uint64_t *x,
                                       uint32_t bit_index)
@@ -11,10 +12,11 @@ static uint8_t get_bit_from_u64_array(const uint64_t *x,
 }
 
 int RegenerateFG(const uint8_t *kgseed,
-                 int16_t *f,
-                 int16_t *g)
+                 int8_t *f,
+                 int8_t *g)
 {
     if (kgseed == NULL || f == NULL || g == NULL) {
+        printf("Error: Invalid parameters for RegenerateFG function.\n");
         return -1;
     }
 
@@ -61,7 +63,7 @@ int RegenerateFG(const uint8_t *kgseed,
 
     for (uint32_t i = 0; i < HAWK_N; i++) {
 
-        int16_t sum = 0;
+        int8_t sum = 0;
 
         for (uint32_t j = 0; j < b; j++) {
 
@@ -72,7 +74,7 @@ int RegenerateFG(const uint8_t *kgseed,
                                           bit_index);
         }
 
-        f[i] = sum - (int16_t)(b / 2);
+        f[i] = sum - (int8_t)(b / 2);
     }
 
     /*
@@ -81,7 +83,7 @@ int RegenerateFG(const uint8_t *kgseed,
 
     for (uint32_t i = 0; i < HAWK_N; i++) {
 
-        int16_t sum = 0;
+        int8_t sum = 0;
 
         for (uint32_t j = 0; j < b; j++) {
 
@@ -92,7 +94,7 @@ int RegenerateFG(const uint8_t *kgseed,
                                           bit_index);
         }
 
-        g[i] = sum - (int16_t)(b / 2);
+        g[i] = sum - (int8_t)(b / 2);
     }
 
     return 0;
