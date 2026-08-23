@@ -2,6 +2,7 @@
 #include "decode.h"
 #include "hawk_params.h"
 
+/* Reconstruye un entero a partir de k bits almacenados en orden LSB-first. */
 uint32_t DecodeInt(const int8_t *bits,
                    uint32_t k_bits)
 {
@@ -14,6 +15,7 @@ uint32_t DecodeInt(const int8_t *bits,
     return x;
 }
 
+/* Separa y decodifica los campos de una clave privada HAWK-512. */
 int DecodePrivate(Hawk512PrivateKey *out,
                   const uint8_t *priv,
                   size_t priv_len)

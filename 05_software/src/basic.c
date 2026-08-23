@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+/* Calcula el adjunto f*(x)=f(x^-1) en Z[x]/(x^n+1). */
 void reciprocal(int32_t *f, int32_t *f_rec, uint32_t n)
 {
     f_rec[0] = f[0];
@@ -13,6 +14,7 @@ void reciprocal(int32_t *f, int32_t *f_rec, uint32_t n)
     }
 }
 
+/* Multiplica dos polinomios modulo x^n+1 mediante convolucion negaciclica. */
 void poly_mul(const int32_t *a, const int32_t *b, int32_t *c, uint32_t n)
 {
     int64_t temp[n];
@@ -37,6 +39,7 @@ void poly_mul(const int32_t *a, const int32_t *b, int32_t *c, uint32_t n)
     }
 }
 
+/* Variante en double de la multiplicacion negaciclica, usada por la inversion. */
 static void poly_mul_d(const double *a, const double *b, double *c, uint32_t n)
 {
     double temp[n];
@@ -61,6 +64,7 @@ static void poly_mul_d(const double *a, const double *b, double *c, uint32_t n)
     }
 }
 
+/* Aproxima sobre los racionales el inverso de a modulo x^n+1. */
 void poly_inverse(const int32_t *a, double *a_inv, uint32_t n)
 {
     double a_d[n];
@@ -93,18 +97,21 @@ void poly_inverse(const int32_t *a, double *a_inv, uint32_t n)
     }
 }
 
-int32_t norm(int32_t *f, int32_t *g, uint32_t n)
+/* Devuelve la norma cuadrada sum_i(f[i]^2+g[i]^2). */
+int32_t norm(const int32_t *f, const int32_t *g, uint32_t n)
 {
-    int32_t sum = 0U;
-    int32_t result = 0U;
+    int64_t sum = 0;
+
     for (uint32_t i = 0U; i < n; i++) {
-        sum += f[i] * g[i];
+        sum += (int64_t)f[i] * f[i];
+        sum += (int64_t)g[i] * g[i];
     }
-    result = sqrt((double)sum);
-    return result;
+
+    return (int32_t)sum;
 }
 
-void conj(int32_t *f, int32_t *f_conj, uint32_t n)
+/* Calcula el conjugado de Galois f(-x), negando los grados impares. */
+void poly_conj(int32_t *f, int32_t *f_conj, uint32_t n)
 {
     for (uint32_t i = 0U; i < n; i++)
     {
@@ -116,17 +123,19 @@ void conj(int32_t *f, int32_t *f_conj, uint32_t n)
     }
 }
 
+/* Proyecta f al subanillo de grado n/2 mediante la norma f(x)f(-x). */
 void norm_ring (int32_t *f, int32_t *f_norm, uint32_t n)
 {
     int32_t f_conj[n];
     int32_t f_prod[n];
-    conj(f, f_conj, n);
+    poly_conj(f, f_conj, n);
     poly_mul(f, f_conj, f_prod, n);
     for (uint32_t i = 0U; i < n/2U; i++) {
         f_norm[i] = f_prod[2*i];
     }
 }
 
+/* Eleva un polinomio del subanillo sustituyendo x por x^2. */
 void expand_ring (int32_t *f, int32_t *f_exp, uint32_t n)
 {
     for (uint32_t i = 0U; i < n; i++) {
@@ -138,6 +147,7 @@ void expand_ring (int32_t *f, int32_t *f_exp, uint32_t n)
     }
 }
 
+/* Invierte el orden de los k bits menos significativos de x. */
 uint32_t bit_reverse(uint32_t x, uint32_t k)
 {
     uint32_t result = 0U;
@@ -152,6 +162,7 @@ uint32_t bit_reverse(uint32_t x, uint32_t k)
     return result;
 }
 
+/* Indica si todos los coeficientes del polinomio son cero. */
 bool poly_is_zero(const int32_t *k, uint32_t n)
 {
     for (uint32_t i = 0; i < n; i++) {
@@ -162,6 +173,7 @@ bool poly_is_zero(const int32_t *k, uint32_t n)
     return true;
 }
 
+/* Devuelve el mayor valor absoluto entre los coeficientes de a y b. */
 int32_t infinite_norm(const int32_t *a, const int32_t *b, uint32_t n)
 {
     int32_t max_value = 0;
@@ -174,4 +186,17 @@ int32_t infinite_norm(const int32_t *a, const int32_t *b, uint32_t n)
         }
     }
     return max_value;
+}
+
+/* Calcula floor(log2(n)) mediante desplazamientos enteros. */
+uint32_t log2_uint(uint32_t n)
+{
+    uint32_t result = 0U;
+
+    while (n > 1U) {
+        n >>= 1U;
+        result++;
+    }
+
+    return result;
 }

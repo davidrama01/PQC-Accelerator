@@ -5,7 +5,7 @@
 #include "hawk_params.h"
 
 int RegenerateFG(const uint8_t *kgseed,
-                 int16_t *f,
-                 int16_t *g);
+                 int8_t *f,
+                 int8_t *g);
 
 #endif

@@ -93,7 +93,6 @@
 
     #define HAWK_BETA0_NUM           1
     #define HAWK_BETA0_DEN           1000
-    #define HAWK_BETA0               HAWK_BETA0_NUM / HAWK_BETA0_DEN
 
 #endif
 
@@ -142,19 +141,19 @@
  * ============================================================
  */
 
-#define HAWK_N_BYTES             (HAWK_N / 8)
+#define HAWK_N_BYTES            (HAWK_N / 8)
 
-#define HAWK_KGSEED_BYTES        (HAWK_KGSEED_BITS / 8)
+#define HAWK_KGSEED_BYTES       (HAWK_KGSEED_BITS / 8)
 
-#define HAWK_HPUB_BYTES          (HAWK_HPUB_BITS / 8)
+#define HAWK_HPUB_BYTES         (HAWK_HPUB_BITS / 8)
 
-#define HAWK_SALTLEN_BYTES       (HAWK_SALTLEN_BITS / 8)
+#define HAWK_SALTLEN_BYTES      (HAWK_SALTLEN_BITS / 8)
 
-#define HAWK_SAMPLER_Y_WORDS   ((5 * HAWK_N) / 2)
+#define HAWK_SAMPLER_Y_WORDS    ((5 * HAWK_N) / 2)
 
-#define HAWK_SAMPLER_X4_WORDS  (HAWK_SAMPLER_Y_WORDS / 4)
+#define HAWK_SAMPLER_X4_WORDS   (HAWK_SAMPLER_Y_WORDS / 4)
 
-#define LOG_BITS                log2_uint(HAWK_N)
+#define HAWK_BETA0              ((double)HAWK_BETA0_NUM / (double)HAWK_BETA0_DEN)
 
 #define P1                      2147473409
 

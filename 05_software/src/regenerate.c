@@ -2,6 +2,7 @@
 #include "shake256.h"
 #include <stdio.h>
 
+/* Extrae un bit LSB-first de un array de palabras de 64 bits. */
 static uint8_t get_bit_from_u64_array(const uint64_t *x,
                                       uint32_t bit_index)
 {
@@ -11,12 +12,12 @@ static uint8_t get_bit_from_u64_array(const uint64_t *x,
     return (uint8_t)((x[word_index] >> bit_pos) & 1ULL);
 }
 
+/* Regenera deterministamente f y g binomiales a partir de kgseed. */
 int RegenerateFG(const uint8_t *kgseed,
                  int8_t *f,
                  int8_t *g)
 {
     if (kgseed == NULL || f == NULL || g == NULL) {
-        printf("Error: Invalid parameters for RegenerateFG function.\n");
         return -1;
     }
 

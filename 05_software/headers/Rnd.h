@@ -2,6 +2,7 @@
 #define RND_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 int Rnd(uint8_t *out, size_t num_bits);
 

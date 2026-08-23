@@ -2,7 +2,9 @@
 #include "basic.h"
 #include "fft_transform.h"
 #include <stdint.h>
+#include <string.h>
 
+/* Calcula gcd(a,b) y u,v tales que u*a - v*b = gcd(a,b). */
 void extended_gcd(int32_t a, int32_t b,
                   int32_t *gcd,
                   int32_t *x,
@@ -35,6 +37,7 @@ void extended_gcd(int32_t a, int32_t b,
     *y = -old_t;
 }
 
+/* Aplica la reduccion de Babai sin cambiar la ecuacion fG - gF = 1. */
 void reduce(int32_t *f, int32_t *g, int32_t *f_solve, int32_t *g_solve, int32_t n, int32_t *f_reduce, int32_t *g_reduce)
 {
     int32_t f_fft[n], g_fft[n], f_solve_fft[n], g_solve_fft[n];
@@ -57,8 +60,8 @@ void reduce(int32_t *f, int32_t *g, int32_t *f_solve, int32_t *g_solve, int32_t 
         fft(f_solve, f_solve_fft, n);
         fft(g_solve, g_solve_fft, n);
 
-        fft_mul(f_solve_fft, f_fft, fft_mul_1, n);
-        fft_mul(g_solve_fft, g_fft, fft_mul_2, n);
+        fft_mul(f_solve_fft, f_adj_fft, fft_mul_1, n);
+        fft_mul(g_solve_fft, g_adj_fft, fft_mul_2, n);
         fft_mul(f_fft, f_adj_fft, fft_mul_3, n);
         fft_mul(g_fft, g_adj_fft, fft_mul_4, n);
 
@@ -69,26 +72,33 @@ void reduce(int32_t *f, int32_t *g, int32_t *f_solve, int32_t *g_solve, int32_t 
 
         fft_div(fft_sum_1, fft_sum_2, fft_division, n);
 
-        fft_mul(fft_division, f, kf_fft, n);
-        fft_mul(fft_division, g, kg_fft, n);
+        fft_mul(fft_division, f_fft, kf_fft, n);
+        fft_mul(fft_division, g_fft, kg_fft, n);
 
         for (uint32_t i = 0U; i < n; i++) {
-            f_reduce_fft[i] = f_solve[i] - kf_fft[i];
-            g_reduce_fft[i] = g_solve[i] - kg_fft[i];
+            f_reduce_fft[i] = f_solve_fft[i] - kf_fft[i];
+            g_reduce_fft[i] = g_solve_fft[i] - kg_fft[i];
         }
-    } while (!poly_is_zero(fft_division, n));
 
-    ifft(f_reduce_fft, f_reduce, n);
-    ifft(g_reduce_fft, g_reduce, n);
+        ifft(f_reduce_fft, f_reduce, n);
+        ifft(g_reduce_fft, g_reduce, n);
+
+        memcpy(f_solve, f_reduce, n * sizeof(int32_t));
+        memcpy(g_solve, g_reduce, n * sizeof(int32_t));
+    } while (!poly_is_zero(fft_division, n));
     
 }
 
-void towersolver(int32_t *f, int32_t *g, int32_t *f_solve, int32_t *g_solve, int32_t n)
+/* Resuelve recursivamente fG - gF = 1 mediante normas, lifting y reduccion. */
+int towersolver(int32_t *f, int32_t *g, int32_t *f_solve, int32_t *g_solve, int32_t n)
 {
     int32_t u, v, gcd;
     if (n == 1)
     {
         extended_gcd(*f, *g, &gcd, &u, &v);
+        if (gcd != 1 && gcd != -1) {
+            return -1;
+        }
         *f_solve = v / gcd;
         *g_solve = u / gcd;
     } else 
@@ -99,20 +109,23 @@ void towersolver(int32_t *f, int32_t *g, int32_t *f_solve, int32_t *g_solve, int
         int32_t g_prim_solve[n/2U];
         norm_ring(f, f_prim, n);
         norm_ring(g, g_prim, n);
-        towersolver(f_prim, g_prim, f_prim_solve, g_prim_solve, n/2U);
+        if (towersolver(f_prim, g_prim, f_prim_solve, g_prim_solve, n / 2U) != 0) {
+            return -1;
+        }
         int32_t f_adj[n];
         int32_t g_adj[n];
-        reciprocal(f, f_adj, n);
-        reciprocal(g, g_adj, n);
+        poly_conj(f, f_adj, n);
+        poly_conj(g, g_adj, n);
         int32_t f_solve_exp[n];
         int32_t g_solve_exp[n];
         expand_ring(f_prim_solve, f_solve_exp, n);
         expand_ring(g_prim_solve, g_solve_exp, n);
         int32_t f_prod[n];
         int32_t g_prod[n];
-        poly_mul(f_adj, f_solve_exp, f_prod, n);
-        poly_mul(g_adj, g_solve_exp, g_prod, n);
+        poly_mul(g_adj, f_solve_exp, f_prod, n);
+        poly_mul(f_adj, g_solve_exp, g_prod, n);
         reduce(f, g, f_prod, g_prod, n, f_solve, g_solve);
     }
+    return 0;
 }
 

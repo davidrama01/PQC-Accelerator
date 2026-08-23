@@ -1,7 +1,6 @@
 #include <string.h>
 #include <stdint.h>
 #include "shake256.h"
-#include "encode.h"
 
 #define SHAKE256_RATE 136
 
@@ -34,11 +33,13 @@ static const int keccakf_piln[24] = {
     20, 14, 22, 9, 6, 1
 };
 
+/* Rota una palabra de 64 bits a la izquierda. */
 static uint64_t rol64(uint64_t x, int s)
 {
     return (x << s) | (x >> (64 - s));
 }
 
+/* Aplica las 24 rondas de la permutacion Keccak-f[1600]. */
 static void keccakf(uint64_t st[25])
 {
     int i, j, round;
@@ -75,6 +76,7 @@ static void keccakf(uint64_t st[25])
     }
 }
 
+/* Absorbe bytes little-endian mediante XOR en el estado Keccak. */
 static void xor_bytes_into_state(uint64_t st[25], const uint8_t *in, size_t len)
 {
     uint8_t *s = (uint8_t *)st;
@@ -83,6 +85,7 @@ static void xor_bytes_into_state(uint64_t st[25], const uint8_t *in, size_t len)
         s[i] ^= in[i];
 }
 
+/* Calcula SHAKE256: absorbe in y extrae outlen bytes del XOF. */
 void shake256(uint8_t *out, size_t outlen,
               const uint8_t *in, size_t inlen)
 {
@@ -121,7 +124,8 @@ void shake256(uint8_t *out, size_t outlen,
     }
 }
 
-uint64_t DecodeInt(const uint8_t *buf, size_t k_bits)
+/* Decodifica hasta 64 bits little-endian desde una secuencia de bytes. */
+uint64_t DecodeIntBytes(const uint8_t *buf, size_t k_bits)
 {
     uint64_t x = 0;
 
@@ -137,6 +141,24 @@ uint64_t DecodeInt(const uint8_t *buf, size_t k_bits)
     return x;
 }
 
+/* Codifica los k bits bajos de x en bytes little-endian. */
+void EncodeIntBytes(uint8_t *out, uint64_t x, size_t k_bits)
+{
+    size_t nbytes = (k_bits + 7) / 8;
+
+    for (size_t b = 0; b < nbytes; b++) {
+        out[b] = 0;
+    }
+
+    for (size_t i = 0; i < k_bits; i++) {
+        size_t byte_pos = i / 8;
+        size_t bit_pos  = i % 8;
+
+        out[byte_pos] |= ((x >> i) & 1ULL) << bit_pos;
+    }
+}
+
+/* Genera palabras de 64 bits interpretando la salida de SHAKE256. */
 void shake256w(uint64_t *w, size_t nwords,
                const uint8_t *m, size_t mlen)
 {
@@ -145,10 +167,11 @@ void shake256w(uint64_t *w, size_t nwords,
     shake256(buf, sizeof(buf), m, mlen);
 
     for (size_t i = 0; i < nwords; i++) {
-        w[i] = DecodeInt(&buf[8 * i], 64);
+        w[i] = DecodeIntBytes(&buf[8 * i], 64);
     }
 }
 
+/* Ejecuta cuatro dominios SHAKE256 y concatena sus palabras de salida. */
 void shake256x4(uint64_t *out, size_t nwords,
                 const uint8_t *m, size_t mlen)
 {
@@ -160,7 +183,7 @@ void shake256x4(uint64_t *out, size_t nwords,
             msg_ext[t] = m[t];
         }
 
-        EncodeInt(&msg_ext[mlen], j, 8);
+        EncodeIntBytes(&msg_ext[mlen], j, 8);
 
         uint64_t tmp[nwords];
 

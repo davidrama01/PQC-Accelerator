@@ -2,6 +2,7 @@
 #include "encode.h"
 #include "hawk_params.h"
 
+/* Codifica los k bits menos significativos de x, empezando por el LSB. */
 int EncodeInt(int8_t *buf, uint32_t x, uint32_t k_bits)
 {
     if (x > (1 << k_bits) - 1) {
@@ -13,6 +14,7 @@ int EncodeInt(int8_t *buf, uint32_t x, uint32_t k_bits)
     return 0;
 }
 
+/* Empaqueta una secuencia de bits LSB-first en una secuencia de bytes. */
 void PackBits(uint8_t *out, const int8_t *bits, uint32_t number_bits)
 {
     uint32_t number_bytes = (number_bits + 7U) / 8U;
@@ -30,6 +32,7 @@ void PackBits(uint8_t *out, const int8_t *bits, uint32_t number_bits)
     }
 }
 
+/* Codifica kgseed, F mod 2, G mod 2 y hpub en la clave privada HAWK. */
 int EncodePrivate(uint8_t *priv,
                   size_t priv_len,
                   const uint8_t *kgseed,
@@ -60,6 +63,7 @@ int EncodePrivate(uint8_t *priv,
     return 0;
 }
 
+/* Comprime coeficientes enteros con el codigo Golomb-Rice usado por HAWK. */
 int CompressGR(int8_t *y,
                const int32_t *x,
                uint32_t k,
@@ -104,6 +108,7 @@ int CompressGR(int8_t *y,
     return 0;
 }
 
+/* Codifica q00 y q01 y rellena la salida hasta el tamano de clave publica. */
 int EncodePublic(uint8_t *pub, int32_t *q00, int32_t *q01, uint32_t n)
 {
     if (n != HAWK_N) {
@@ -202,6 +207,7 @@ int EncodePublic(uint8_t *pub, int32_t *q00, int32_t *q01, uint32_t n)
     return 0;
 }
 
+/* Codifica el salt y el polinomio comprimido s1 de una firma HAWK. */
 int EncodeSignature(uint8_t *sig,
                     uint32_t sig_len_bits,
                     const uint8_t *salt,

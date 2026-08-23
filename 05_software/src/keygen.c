@@ -9,9 +9,10 @@
 #include "shake256.h"
 #include "encode.h"
 
-void keygen(uint8_t *pub, uint32_t publen_bits) 
+/* Genera y codifica un par de claves HAWK, reintentando candidatos no validos. */
+void keygen(uint8_t *pub, uint8_t *priv)
 {
-    uint8_t kgseed;
+    uint8_t kgseed[HAWK_KGSEED_BYTES];
     int8_t f_words[HAWK_N];
     int8_t g_words[HAWK_N];
     int32_t f_32[HAWK_N];
@@ -34,21 +35,23 @@ void keygen(uint8_t *pub, uint32_t publen_bits)
     int32_t q01_ifft[HAWK_N], q11_ifft[HAWK_N];
 
     restart:
-    Rnd(&kgseed, HAWK_KGSEED_BYTES * 8);
-    RegenerateFG(&kgseed, f_words, g_words);
+    if (Rnd(kgseed, HAWK_KGSEED_BYTES * 8U) != 0) {
+        goto restart;
+    }
+    RegenerateFG(kgseed, f_words, g_words);
     for (uint32_t i = 0U; i < HAWK_N; i++)
     {
         f_32[i] = (int32_t)f_words[i];
         g_32[i] = (int32_t)g_words[i];
     }
-    int32_t f_inv= IsInvertible_mod2(f_32);
-    int32_t g_inv= IsInvertible_mod2(g_32);
+    int32_t f_inv= IsInvertible_mod2(f_32, HAWK_N);
+    int32_t g_inv= IsInvertible_mod2(g_32, HAWK_N);
     if ((f_inv == 0U) || (g_inv == 0U)) 
     {
         goto restart;
     }
     threshold = norm(f_32, g_32, HAWK_N);
-    if (threshold <= 2 * HAWK_N * HAWK_SIGMA_KREC * HAWK_SIGMA_KREC)
+    if ((int64_t)threshold * 1000000LL <= 2LL * HAWK_N * HAWK_SIGMA_KREC * HAWK_SIGMA_KREC)
     {
         goto restart;
     }
@@ -64,8 +67,8 @@ void keygen(uint8_t *pub, uint32_t publen_bits)
         q00[i] = q00_a[i] + q00_b[i];
     }
 
-    uint32_t p1_inv = IsInvertible(q00, G1, P1, HAWK_N, LOG_BITS);
-    uint32_t p2_inv = IsInvertible(q00, G2, P2, HAWK_N, LOG_BITS);
+    uint32_t p1_inv = IsInvertible(q00, G1, P1, HAWK_N);
+    uint32_t p2_inv = IsInvertible(q00, G2, P2, HAWK_N);
     if ((p1_inv == 0U) || (p2_inv == 0U))
     {
         goto restart;
@@ -78,7 +81,9 @@ void keygen(uint8_t *pub, uint32_t publen_bits)
         goto restart;
     }
 
-    towersolver(f_32, g_32, f_solve, g_solve, HAWK_N);
+    if (towersolver(f_32, g_32, f_solve, g_solve, HAWK_N) != 0) {
+        goto restart;
+    }
 
     max_value = infinite_norm(f_solve, g_solve, HAWK_N);
     if (max_value > 127) {
@@ -112,9 +117,11 @@ void keygen(uint8_t *pub, uint32_t publen_bits)
     ifft(q01, q01_ifft, HAWK_N);
     ifft(q11, q11_ifft, HAWK_N);
 
-    for (uint32_t i = 0U; i < HAWK_N; i++)
+    int32_t q11_limit = (int32_t)(1U << HAWK_Q11_BITS);
+
+    for (uint32_t i = 1U; i < HAWK_N; i++)
     {
-        if (q11_ifft[i] >= (1 << HAWK_Q11_BITS) || q11_ifft[i] < -(1 << HAWK_Q11_BITS)) {
+        if (q11_ifft[i] >= q11_limit || q11_ifft[i] <= -q11_limit) {
             goto restart;
         }
     }
@@ -123,9 +130,16 @@ void keygen(uint8_t *pub, uint32_t publen_bits)
     if (result_pub != 0) {
         goto restart;
     }
+    uint8_t f_solve_mod2[HAWK_N];
+    uint8_t g_solve_mod2[HAWK_N];
     uint8_t hpub[HAWK_HPUB_BYTES];
-    uint8_t priv[HAWK_PRIV_BYTES];
-    shake256(hpub, HAWK_HPUB_BYTES, pub, publen_bits / 8U);
-    EncodePrivate(priv, HAWK_PRIV_BYTES, &kgseed, f_solve, g_solve, hpub);
-    return 0;
+    for (uint32_t i = 0U; i < HAWK_N; i++) {
+        f_solve_mod2[i] = (uint8_t)((uint32_t)f_solve[i] & 1U);
+        g_solve_mod2[i] = (uint8_t)((uint32_t)g_solve[i] & 1U);
+    }
+
+    shake256(hpub, HAWK_HPUB_BYTES, pub, HAWK_PUB_BYTES);
+    if (EncodePrivate(priv, HAWK_PRIV_BYTES, kgseed, f_solve_mod2, g_solve_mod2, hpub) != 0) {
+        goto restart;
+    }
 }

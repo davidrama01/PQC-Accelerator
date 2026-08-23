@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <math.h>
 
+/* Obtiene en punto fijo las partes real e imaginaria del twiddle Delta[k]. */
 void delta (uint32_t k, int64_t *real_delta, int64_t *imag_delta) {
     const double SCALE = (double)(1ULL << 31);
     uint32_t k_rev = bit_reverse(k, 10U);
@@ -13,6 +14,7 @@ void delta (uint32_t k, int64_t *real_delta, int64_t *imag_delta) {
     *imag_delta = (int64_t)llround(imag_part);
 }
 
+/* Convierte un polinomio a la representacion FFT negaciclica de HAWK. */
 void fft (const int32_t *a, int32_t *a_fft, uint32_t n) {
     int64_t f[n];
     for (uint32_t i = 0; i < n; i++) {
@@ -50,6 +52,7 @@ void fft (const int32_t *a, int32_t *a_fft, uint32_t n) {
     }
 }
 
+/* Convierte una representacion FFT a coeficientes del polinomio. */
 void ifft (const int32_t *a, int32_t *a_ifft, uint32_t n) {
     int64_t f[n];
     for (uint32_t i = 0; i < n; i++) {
@@ -91,6 +94,7 @@ void ifft (const int32_t *a, int32_t *a_ifft, uint32_t n) {
     }
 }
 
+/* Multiplica componente a componente dos polinomios en representacion FFT. */
 void fft_mul(const int32_t *a_fft, const int32_t *b_fft, int32_t *c_fft, uint32_t n)
 {
     for (uint32_t i = 0; i < n / 2U; i++) {
@@ -108,8 +112,13 @@ void fft_mul(const int32_t *a_fft, const int32_t *b_fft, int32_t *c_fft, uint32_
     }
 }
 
+/* Divide en FFT, redondea el cociente en coeficientes y devuelve FFT(k). */
 int fft_div(const int32_t *a_fft, const int32_t *b_fft, int32_t *c_fft, uint32_t n)
 {
+    int32_t quotient_fixed[n];
+    int32_t k_fixed[n];
+    int32_t k[n];
+
     for (uint32_t i = 0; i < n / 2U; i++) {
         int64_t a_real = a_fft[i];
         int64_t a_imag = a_fft[i + n / 2U];
@@ -126,10 +135,33 @@ int fft_div(const int32_t *a_fft, const int32_t *b_fft, int32_t *c_fft, uint32_t
 
         int64_t numerator_imag = a_imag * b_real - a_real * b_imag;
 
-        c_fft[i] = (int32_t)(numerator_real / denominator);
+        double quotient_real = (double)numerator_real / (double)denominator;
+        double quotient_imag = (double)numerator_imag / (double)denominator;
+        double fixed_real = quotient_real * 65536.0;
+        double fixed_imag = quotient_imag * 65536.0;
 
-        c_fft[i + n / 2U] = (int32_t)(numerator_imag / denominator);
+        if (fixed_real > (double)INT32_MAX || fixed_real < (double)INT32_MIN ||
+            fixed_imag > (double)INT32_MAX || fixed_imag < (double)INT32_MIN) {
+            return -1;
+        }
+
+        quotient_fixed[i] = (int32_t)llround(fixed_real);
+        quotient_fixed[i + n / 2U] = (int32_t)llround(fixed_imag);
     }
+
+    ifft(quotient_fixed, k_fixed, n);
+
+    for (uint32_t i = 0U; i < n; i++) {
+        int64_t value = k_fixed[i];
+
+        if (value >= 0) {
+            k[i] = (int32_t)((value + 32768) / 65536);
+        } else {
+            k[i] = (int32_t)(-((-value + 32768) / 65536));
+        }
+    }
+
+    fft(k, c_fft, n);
 
     return 0;
 }
