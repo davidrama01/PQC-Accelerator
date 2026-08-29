@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "name": "MinGW",
+            "compilerPath": "C:/MINGW/bin/gcc.exe",
+            "compilerArgs": [],
+            "includePath": [
+                "${workspaceFolder}/05_software/headers",
+                "${workspaceFolder}/05_software/src",
+                "${workspaceFolder}/05_software/third_party/ntrugen",
+                "${workspaceFolder}/02_project/vitis/hawk_app_acc/headers",
+                "${workspaceFolder}/02_project/vitis/hawk_app_acc/src",
+                "${workspaceFolder}/02_project/vitis/hawk/ps7_cortexa9_0/standalone_domain/bsp/ps7_cortexa9_0/include"
+            ],
+            "defines": [],
+            "cStandard": "c99",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "gcc-x64"
+        }
+    ],
+    "version": 4
+}
