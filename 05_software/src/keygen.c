@@ -21,18 +21,13 @@ void keygen(uint8_t *pub, uint8_t *priv)
     int32_t g_rec_32[HAWK_N];
     int32_t q00_a[HAWK_N];
     int32_t q00_b[HAWK_N];
-    int32_t q00[HAWK_N], q01[HAWK_N], q10[HAWK_N], q11[HAWK_N];
+    int32_t q00[HAWK_N], q01[HAWK_N], q11[HAWK_N];
     int32_t f_solve[HAWK_N], g_solve[HAWK_N];
-    double q00_inv_d[HAWK_N];
     int32_t threshold;
     int32_t max_value;
-    int32_t f_fft[HAWK_N], g_fft[HAWK_N], f_adj_fft[HAWK_N], g_adj_fft[HAWK_N];
-    int32_t f_solve_fft[HAWK_N], g_solve_fft[HAWK_N];
     int32_t f_solve_adj[HAWK_N], g_solve_adj[HAWK_N];
-    int32_t f_solve_adj_fft[HAWK_N], g_solve_adj_fft[HAWK_N];
-    int32_t q01_partial_mul_1[HAWK_N], q01_partial_mul_2[HAWK_N];
-    int32_t q11_partial_mul_1[HAWK_N], q11_partial_mul_2[HAWK_N];
-    int32_t q01_ifft[HAWK_N], q11_ifft[HAWK_N];
+    int32_t q01_partial_1[HAWK_N], q01_partial_2[HAWK_N];
+    int32_t q11_partial_1[HAWK_N], q11_partial_2[HAWK_N];
 
     restart:
     if (Rnd(kgseed, HAWK_KGSEED_BYTES * 8U) != 0) {
@@ -74,9 +69,7 @@ void keygen(uint8_t *pub, uint8_t *priv)
         goto restart;
     }
 
-    poly_inverse(q00, q00_inv_d, HAWK_N);
-
-    if (q00_inv_d[0] >= HAWK_BETA0) 
+    if (hawk_check_q00_beta(q00, HAWK_N) != 1)
     {
         goto restart;
     }
@@ -93,53 +86,56 @@ void keygen(uint8_t *pub, uint8_t *priv)
     reciprocal(f_solve, f_solve_adj, HAWK_N);
     reciprocal(g_solve, g_solve_adj, HAWK_N);
 
-    fft(f_rec_32, f_adj_fft, HAWK_N);
-    fft(g_rec_32, g_adj_fft, HAWK_N);
-    fft(f_solve, f_solve_fft, HAWK_N);
-    fft(g_solve, g_solve_fft, HAWK_N);
-    fft(f_solve_adj, f_solve_adj_fft, HAWK_N);
-    fft(g_solve_adj, g_solve_adj_fft, HAWK_N);
-
-    fft_mul(f_solve_fft, f_adj_fft, q01_partial_mul_1, HAWK_N);
-    fft_mul(g_solve_fft, g_adj_fft, q01_partial_mul_2, HAWK_N);
+    poly_mul(f_solve, f_rec_32, q01_partial_1, HAWK_N);
+    poly_mul(g_solve, g_rec_32, q01_partial_2, HAWK_N);
     for (uint32_t i = 0U; i < HAWK_N; i++)
     {
-        q01[i] = q01_partial_mul_1[i] + q01_partial_mul_2[i];
+        int64_t value = (int64_t)q01_partial_1[i] + q01_partial_2[i];
+        if ((value > INT32_MAX) || (value < INT32_MIN)) {
+            goto restart;
+        }
+        q01[i] = (int32_t)value;
     }
 
-    fft_mul(f_solve_fft, f_solve_adj_fft, q11_partial_mul_1, HAWK_N);
-    fft_mul(g_solve_fft, g_solve_adj_fft, q11_partial_mul_2, HAWK_N);
+    poly_mul(f_solve, f_solve_adj, q11_partial_1, HAWK_N);
+    poly_mul(g_solve, g_solve_adj, q11_partial_2, HAWK_N);
     for (uint32_t i = 0U; i < HAWK_N; i++)
     {
-        q11[i] = q11_partial_mul_1[i] + q11_partial_mul_2[i];
+        int64_t value = (int64_t)q11_partial_1[i] + q11_partial_2[i];
+        if ((value > INT32_MAX) || (value < INT32_MIN)) {
+            goto restart;
+        }
+        q11[i] = (int32_t)value;
     }
-
-    ifft(q01, q01_ifft, HAWK_N);
-    ifft(q11, q11_ifft, HAWK_N);
 
     int32_t q11_limit = (int32_t)(1U << HAWK_Q11_BITS);
 
     for (uint32_t i = 1U; i < HAWK_N; i++)
     {
-        if (q11_ifft[i] >= q11_limit || q11_ifft[i] <= -q11_limit) {
+        if (q11[i] >= q11_limit || q11[i] <= -q11_limit) {
             goto restart;
         }
     }
 
-    int result_pub = EncodePublic(pub, q00, q01_ifft, HAWK_N);
+    int result_pub = EncodePublic(pub, q00, q01, HAWK_N);
     if (result_pub != 0) {
         goto restart;
     }
-    uint8_t f_solve_mod2[HAWK_N];
-    uint8_t g_solve_mod2[HAWK_N];
+    int8_t f_solve_mod2[HAWK_N];
+    int8_t g_solve_mod2[HAWK_N];
+    uint8_t f_solve_packed[HAWK_N_BYTES];
+    uint8_t g_solve_packed[HAWK_N_BYTES];
     uint8_t hpub[HAWK_HPUB_BYTES];
     for (uint32_t i = 0U; i < HAWK_N; i++) {
-        f_solve_mod2[i] = (uint8_t)((uint32_t)f_solve[i] & 1U);
-        g_solve_mod2[i] = (uint8_t)((uint32_t)g_solve[i] & 1U);
+        f_solve_mod2[i] = (int8_t)((uint32_t)f_solve[i] & 1U);
+        g_solve_mod2[i] = (int8_t)((uint32_t)g_solve[i] & 1U);
     }
+    PackBits(f_solve_packed, f_solve_mod2, HAWK_N);
+    PackBits(g_solve_packed, g_solve_mod2, HAWK_N);
 
     shake256(hpub, HAWK_HPUB_BYTES, pub, HAWK_PUB_BYTES);
-    if (EncodePrivate(priv, HAWK_PRIV_BYTES, kgseed, f_solve_mod2, g_solve_mod2, hpub) != 0) {
+    if (EncodePrivate(priv, HAWK_PRIV_BYTES, kgseed,
+                      f_solve_packed, g_solve_packed, hpub) != 0) {
         goto restart;
     }
 }
