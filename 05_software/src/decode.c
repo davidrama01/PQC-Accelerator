@@ -3,13 +3,16 @@
 #include "hawk_params.h"
 
 /* Reconstruye un entero a partir de k bits almacenados en orden LSB-first. */
-uint32_t DecodeInt(const int8_t *bits,
-                   uint32_t k_bits)
+uint64_t DecodeInt(const uint8_t *bits,
+                   size_t k_bits)
 {
-    uint32_t x = 0;
+    uint64_t x = 0;
 
-    for (uint32_t i = 0; i < k_bits; i++) {
-        x |= ((uint32_t)bits[i] & 1U) << i;
+    if (k_bits > 64U) {
+        return 0;
+    }
+    for (size_t i = 0; i < k_bits; i++) {
+        x |= ((uint64_t)bits[i] & 1U) << i;
     }
 
     return x;

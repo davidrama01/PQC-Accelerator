@@ -5,8 +5,9 @@
 /* Codifica los k bits menos significativos de x, empezando por el LSB. */
 int EncodeInt(int8_t *buf, uint32_t x, uint32_t k_bits)
 {
-    if (x > (1 << k_bits) - 1) {
-        return -1; // Error: k_bits exceeds the size of uint32_t
+    if ((k_bits > 32U) ||
+        ((k_bits < 32U) && (x >= (1U << k_bits)))) {
+        return -1;
     }
     for (uint32_t i = 0; i < k_bits; i++) {
         buf[i] = (x >> i) & 1U;
@@ -97,7 +98,8 @@ int CompressGR(int8_t *y,
 
     for (uint32_t i = 0; i < k; i++) {
         EncodeInt(v_encode, 0, v[i] >> low);
-        for (uint32_t j = 0; j < v[i] >> low; j++) {
+        uint32_t unary_length = (uint32_t)v[i] >> low;
+        for (uint32_t j = 0; j < unary_length; j++) {
             y[offset++] = v_encode[j];
         }
         y[offset++] = 1;
