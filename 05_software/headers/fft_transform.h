@@ -9,8 +9,11 @@ void fft (const int32_t *a, int32_t *a_fft, uint32_t n);
 
 void ifft (const int32_t *a, int32_t *a_ifft, uint32_t n);
 
-void fft_mul(const int32_t *a_fft, const int32_t *b_fft,
+int fft_mul(const int32_t *a_fft, const int32_t *b_fft,
             int32_t *c_fft, uint32_t n);
+
+int fft_mul_scaled(const int32_t *a_fft, const int32_t *b_fft,
+                   int32_t *c_fft, uint32_t n, uint32_t scale);
 
 int fft_div(const int32_t *a_fft, const int32_t *b_fft,
             int32_t *c_fft, uint32_t n);

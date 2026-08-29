@@ -64,7 +64,6 @@ void ifft (const int32_t *a, int32_t *a_ifft, uint32_t n) {
     int64_t eta_real, eta_imag;
     int64_t x1_real, x1_imag, x2_real, x2_imag;
     int64_t t1_real, t1_imag, t2_real, t2_imag;
-    int64_t t_real, t_imag;
     while (m > 1) {
         v0 = 0;
         for (uint32_t u = 0U; u < m/2U; u++) {
@@ -94,22 +93,54 @@ void ifft (const int32_t *a, int32_t *a_ifft, uint32_t n) {
     }
 }
 
-/* Multiplica componente a componente dos polinomios en representacion FFT. */
-void fft_mul(const int32_t *a_fft, const int32_t *b_fft, int32_t *c_fft, uint32_t n)
+/* Multiplica componente a componente y aplica una escala entera comprobada. */
+int fft_mul_scaled(const int32_t *a_fft, const int32_t *b_fft,
+                   int32_t *c_fft, uint32_t n, uint32_t scale)
 {
+    if (scale == 0U) {
+        return -1;
+    }
+
     for (uint32_t i = 0; i < n / 2U; i++) {
         int32_t a_real = a_fft[i];
         int32_t a_imag = a_fft[i + n / 2U];
         int32_t b_real = b_fft[i];
         int32_t b_imag = b_fft[i + n / 2U];
 
-        int64_t c_real = (int64_t)a_real * b_real - (int64_t)a_imag * b_imag;
+        int64_t real_left = (int64_t)a_real * b_real;
+        int64_t real_right = (int64_t)a_imag * b_imag;
+        int64_t imag_left = (int64_t)a_real * b_imag;
+        int64_t imag_right = (int64_t)a_imag * b_real;
 
-        int64_t c_imag = (int64_t)a_real * b_imag + (int64_t)a_imag * b_real;
+        if (((real_right < 0) && (real_left > INT64_MAX + real_right)) ||
+            ((real_right > 0) && (real_left < INT64_MIN + real_right)) ||
+            ((imag_right > 0) && (imag_left > INT64_MAX - imag_right)) ||
+            ((imag_right < 0) && (imag_left < INT64_MIN - imag_right))) {
+            return -1;
+        }
 
-        c_fft[i] = (int32_t)c_real;
-        c_fft[i + n / 2U] = (int32_t)c_imag;
+        int64_t c_real = real_left - real_right;
+        int64_t c_imag = imag_left + imag_right;
+
+        if ((c_real > INT32_MAX / (int64_t)scale) ||
+            (c_real < INT32_MIN / (int64_t)scale) ||
+            (c_imag > INT32_MAX / (int64_t)scale) ||
+            (c_imag < INT32_MIN / (int64_t)scale)) {
+            return -1;
+        }
+
+        c_fft[i] = (int32_t)(c_real * (int64_t)scale);
+        c_fft[i + n / 2U] = (int32_t)(c_imag * (int64_t)scale);
     }
+
+    return 0;
+}
+
+/* Producto crudo: ambas entradas y la salida conservan su escala numerica. */
+int fft_mul(const int32_t *a_fft, const int32_t *b_fft,
+            int32_t *c_fft, uint32_t n)
+{
+    return fft_mul_scaled(a_fft, b_fft, c_fft, n, 1U);
 }
 
 /* Divide en FFT, redondea el cociente en coeficientes y devuelve FFT(k). */
@@ -118,29 +149,35 @@ int fft_div(const int32_t *a_fft, const int32_t *b_fft, int32_t *c_fft, uint32_t
     int32_t quotient_fixed[n];
     int32_t k_fixed[n];
     int32_t k[n];
+    const int64_t fixed_scale = 65536;
+
+    if ((n < 2U) || (n > 1024U) || ((n & (n - 1U)) != 0U)) {
+        return -1;
+    }
 
     for (uint32_t i = 0; i < n / 2U; i++) {
-        int64_t a_real = a_fft[i];
-        int64_t a_imag = a_fft[i + n / 2U];
-        int64_t b_real = b_fft[i];
-        int64_t b_imag = b_fft[i + n / 2U];
+        double a_real = (double)a_fft[i];
+        double a_imag = (double)a_fft[i + n / 2U];
+        double b_real = (double)b_fft[i];
+        double b_imag = (double)b_fft[i + n / 2U];
 
-        int64_t denominator = b_real * b_real + b_imag * b_imag;
+        double denominator = b_real * b_real + b_imag * b_imag;
 
-        if (denominator == 0) {
+        if ((denominator == 0.0) || !isfinite(denominator)) {
             return -1;
         }
 
-        int64_t numerator_real = a_real * b_real + a_imag * b_imag;
+        double numerator_real = a_real * b_real + a_imag * b_imag;
 
-        int64_t numerator_imag = a_imag * b_real - a_real * b_imag;
+        double numerator_imag = a_imag * b_real - a_real * b_imag;
 
-        double quotient_real = (double)numerator_real / (double)denominator;
-        double quotient_imag = (double)numerator_imag / (double)denominator;
-        double fixed_real = quotient_real * 65536.0;
-        double fixed_imag = quotient_imag * 65536.0;
+        double quotient_real = numerator_real / denominator;
+        double quotient_imag = numerator_imag / denominator;
+        double fixed_real = quotient_real * (double)fixed_scale;
+        double fixed_imag = quotient_imag * (double)fixed_scale;
 
-        if (fixed_real > (double)INT32_MAX || fixed_real < (double)INT32_MIN ||
+        if (!isfinite(fixed_real) || !isfinite(fixed_imag) ||
+            fixed_real > (double)INT32_MAX || fixed_real < (double)INT32_MIN ||
             fixed_imag > (double)INT32_MAX || fixed_imag < (double)INT32_MIN) {
             return -1;
         }
@@ -155,9 +192,9 @@ int fft_div(const int32_t *a_fft, const int32_t *b_fft, int32_t *c_fft, uint32_t
         int64_t value = k_fixed[i];
 
         if (value >= 0) {
-            k[i] = (int32_t)((value + 32768) / 65536);
+            k[i] = (int32_t)((value + fixed_scale / 2) / fixed_scale);
         } else {
-            k[i] = (int32_t)(-((-value + 32768) / 65536));
+            k[i] = (int32_t)(-((-value + fixed_scale / 2) / fixed_scale));
         }
     }
 
