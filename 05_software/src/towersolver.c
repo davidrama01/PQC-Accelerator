@@ -1,131 +1,135 @@
 #include "towersolver.h"
-#include "basic.h"
-#include "fft_transform.h"
+#include "ng_inner.h"
+#include "xil_printf.h"
+
 #include <stdint.h>
-#include <string.h>
 
-/* Calcula gcd(a,b) y u,v tales que u*a - v*b = gcd(a,b). */
-void extended_gcd(int32_t a, int32_t b,
-                  int32_t *gcd,
-                  int32_t *x,
-                  int32_t *y)
+/* Perfiles oficiales del NTRU solver para HAWK. */
+static const ntru_profile SOLVE_HAWK_256 = {
+    1, 8, 8,
+    { 1, 1, 1, 2, 3, 5, 9, 17, 34, 0, 0 },
+    { 1, 1, 2, 4, 7, 13, 26, 50, 0, 0 },
+    { 1, 1, 1, 2, 3, 3, 3, 4, 0, 0 },
+    14,
+    { 0, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127 },
+    { 0, 0, 1, 2, 2, 2, 2, 2, 2, 3, 3 }
+};
+
+static const ntru_profile SOLVE_HAWK_512 = {
+    1, 9, 9,
+    { 1, 1, 1, 2, 3, 6, 11, 21, 41, 82, 0 },
+    { 1, 2, 3, 5, 8, 16, 31, 61, 121, 0 },
+    { 1, 1, 1, 2, 2, 3, 3, 4, 6, 0 },
+    11,
+    { 0, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127 },
+    { 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 3 }
+};
+
+static const ntru_profile SOLVE_HAWK_1024 = {
+    1, 10, 10,
+    { 1, 1, 2, 2, 4, 7, 13, 25, 48, 96, 191 },
+    { 1, 2, 3, 5, 10, 19, 37, 72, 143, 284 },
+    { 1, 1, 2, 2, 3, 3, 3, 4, 4, 7 },
+    9,
+    { 0, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127 },
+    { 0, 0, 1, 2, 2, 2, 2, 2, 2, 3, 3 }
+};
+
+static const ntru_profile *get_profile(uint32_t n, unsigned *logn)
 {
-    int32_t old_r = a, r = b;
-    int32_t old_s = 1, s = 0;
-    int32_t old_t = 0, t = 1;
-
-    while (r != 0) {
-        int64_t q = old_r / r;
-
-        int64_t tmp;
-
-        tmp = old_r;
-        old_r = r;
-        r = tmp - q * r;
-
-        tmp = old_s;
-        old_s = s;
-        s = tmp - q * s;
-
-        tmp = old_t;
-        old_t = t;
-        t = tmp - q * t;
+    switch (n) {
+    case 256U:
+        *logn = 8U;
+        return &SOLVE_HAWK_256;
+    case 512U:
+        *logn = 9U;
+        return &SOLVE_HAWK_512;
+    case 1024U:
+        *logn = 10U;
+        return &SOLVE_HAWK_1024;
+    default:
+        return NULL;
     }
-
-    *gcd = old_r;
-    *x = old_s;
-    *y = -old_t;
 }
 
-/* Aplica la reduccion de Babai sin cambiar la ecuacion fG - gF = 1. */
-void reduce(int32_t *f, int32_t *g, int32_t *f_solve, int32_t *g_solve, int32_t n, int32_t *f_reduce, int32_t *g_reduce)
+int hawk_check_q00_beta(const int32_t *q00, uint32_t n)
 {
-    int32_t f_fft[n], g_fft[n], f_solve_fft[n], g_solve_fft[n];
-    int32_t f_adj[n], g_adj[n], f_adj_fft[n], g_adj_fft[n];
-    int32_t fft_mul_1[n], fft_mul_2[n], fft_mul_3[n], fft_mul_4[n];
-    int32_t fft_sum_1[n], fft_sum_2[n];
-    int32_t fft_division[n];
-    int32_t kg_fft[n], kf_fft[n];
-    int32_t f_reduce_fft[n], g_reduce_fft[n];
+    unsigned logn;
+    fxr beta0;
 
-    do {
+    if (q00 == NULL || get_profile(n, &logn) == NULL) {
+        return -1;
+    }
 
-        reciprocal(f, f_adj, n);
-        reciprocal(g, g_adj, n);
+    switch (n) {
+    case 256U:
+        beta0 = fxr_of_scaled32(17179869U); /* 1/250 */
+        break;
+    case 512U:
+        beta0 = fxr_of_scaled32(4294967U);  /* 1/1000 */
+        break;
+    case 1024U:
+        beta0 = fxr_of_scaled32(1431655U);  /* 1/3000 */
+        break;
+    default:
+        return -1;
+    }
 
-        fft(f_adj, f_adj_fft, n);
-        fft(g_adj, g_adj_fft, n);
-        fft(f, f_fft, n);
-        fft(g, g_fft, n);
-        fft(f_solve, f_solve_fft, n);
-        fft(g_solve, g_solve_fft, n);
+    fxr values[n];
+    for (uint32_t i = 0U; i < n; i++) {
+        values[i] = fxr_of(q00[i]);
+    }
+    vect_FFT(logn, values);
+    for (uint32_t i = 0U; i < (n >> 1); i++) {
+        values[i] = fxr_inv(values[i]);
+    }
+    for (uint32_t i = n >> 1; i < n; i++) {
+        values[i] = fxr_zero;
+    }
+    vect_iFFT(logn, values);
 
-        fft_mul(f_solve_fft, f_adj_fft, fft_mul_1, n);
-        fft_mul(g_solve_fft, g_adj_fft, fft_mul_2, n);
-        fft_mul(f_fft, f_adj_fft, fft_mul_3, n);
-        fft_mul(g_fft, g_adj_fft, fft_mul_4, n);
-
-        for (uint32_t i = 0U; i < n; i++) {
-            fft_sum_1[i] = fft_mul_1[i] + fft_mul_2[i];
-            fft_sum_2[i] = fft_mul_3[i] + fft_mul_4[i];
-        }
-
-        fft_div(fft_sum_1, fft_sum_2, fft_division, n);
-
-        fft_mul(fft_division, f_fft, kf_fft, n);
-        fft_mul(fft_division, g_fft, kg_fft, n);
-
-        for (uint32_t i = 0U; i < n; i++) {
-            f_reduce_fft[i] = f_solve_fft[i] - kf_fft[i];
-            g_reduce_fft[i] = g_solve_fft[i] - kg_fft[i];
-        }
-
-        ifft(f_reduce_fft, f_reduce, n);
-        ifft(g_reduce_fft, g_reduce, n);
-
-        memcpy(f_solve, f_reduce, n * sizeof(int32_t));
-        memcpy(g_solve, g_reduce, n * sizeof(int32_t));
-    } while (!poly_is_zero(fft_division, n));
-    
+    return fxr_lt(beta0, values[0]) ? 0 : 1;
 }
 
-/* Resuelve recursivamente fG - gF = 1 mediante normas, lifting y reduccion. */
-int towersolver(int32_t *f, int32_t *g, int32_t *f_solve, int32_t *g_solve, int32_t n)
+int towersolver(int32_t *f, int32_t *g, int32_t *f_solve,
+                int32_t *g_solve, int32_t n)
 {
-    int32_t u, v, gcd;
-    if (n == 1)
-    {
-        extended_gcd(*f, *g, &gcd, &u, &v);
-        if (gcd != 1 && gcd != -1) {
-            return -1;
-        }
-        *f_solve = v / gcd;
-        *g_solve = u / gcd;
-    } else 
-    {
-        int32_t f_prim[n/2U];
-        int32_t g_prim[n/2U];
-        int32_t f_prim_solve[n/2U];
-        int32_t g_prim_solve[n/2U];
-        norm_ring(f, f_prim, n);
-        norm_ring(g, g_prim, n);
-        if (towersolver(f_prim, g_prim, f_prim_solve, g_prim_solve, n / 2U) != 0) {
-            return -1;
-        }
-        int32_t f_adj[n];
-        int32_t g_adj[n];
-        poly_conj(f, f_adj, n);
-        poly_conj(g, g_adj, n);
-        int32_t f_solve_exp[n];
-        int32_t g_solve_exp[n];
-        expand_ring(f_prim_solve, f_solve_exp, n);
-        expand_ring(g_prim_solve, g_solve_exp, n);
-        int32_t f_prod[n];
-        int32_t g_prod[n];
-        poly_mul(g_adj, f_solve_exp, f_prod, n);
-        poly_mul(f_adj, g_solve_exp, g_prod, n);
-        reduce(f, g, f_prod, g_prod, n, f_solve, g_solve);
+    unsigned logn;
+    const ntru_profile *profile = get_profile((uint32_t)n, &logn);
+    if (profile == NULL) {
+        xil_printf("towersolver: unsupported n=%ld\r\n", (long)n);
+        return -1;
     }
+
+    int8_t f_small[n];
+    int8_t g_small[n];
+    for (uint32_t i = 0U; i < (uint32_t)n; i++) {
+        if ((f[i] < -127) || (f[i] > 127) ||
+            (g[i] < -127) || (g[i] > 127)) {
+            xil_printf("towersolver: input out of int8 range at %lu\r\n",
+                       (unsigned long)i);
+            return -1;
+        }
+        f_small[i] = (int8_t)f[i];
+        g_small[i] = (int8_t)g[i];
+    }
+
+    /* El solver usa limbs de 31 bits y necesita exactamente 6*n palabras. */
+    uint32_t tmp[6U * (uint32_t)n];
+    int status = solve_NTRU(profile, logn, f_small, g_small, tmp);
+    if (status != SOLVE_OK) {
+        xil_printf("towersolver: solve_NTRU failed status=%d n=%ld\r\n",
+                   status, (long)n);
+        return -1;
+    }
+
+    const int8_t *F = (const int8_t *)(const void *)tmp;
+    const int8_t *G = F + n;
+    for (uint32_t i = 0U; i < (uint32_t)n; i++) {
+        f_solve[i] = (int32_t)F[i];
+        g_solve[i] = (int32_t)G[i];
+    }
+
+    xil_printf("towersolver: solved n=%ld\r\n", (long)n);
     return 0;
 }
-
