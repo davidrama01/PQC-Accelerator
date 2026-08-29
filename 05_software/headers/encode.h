@@ -1,17 +1,16 @@
 #ifndef ENCODE_H
 #define ENCODE_H
 
-#define HAWK512_KGSEED_BYTES  24
-#define HAWK512_N_BYTES       64
-#define HAWK512_HPUB_BYTES    32
-#define HAWK512_PRIV_BYTES    184
-
 #include <stdint.h>
 #include <stddef.h>
 
-void EncodeInt(uint8_t *buf,
-               uint64_t x,
-               size_t k_bits);
+int EncodeInt(int8_t *buf,
+              uint32_t x,
+              uint32_t k_bits);
+
+void PackBits(uint8_t *out,
+              const int8_t *bits,
+              uint32_t number_bits);
 
 int EncodePrivate(uint8_t *priv,
                   size_t priv_len,
@@ -20,18 +19,21 @@ int EncodePrivate(uint8_t *priv,
                   const uint8_t *G_mod2,
                   const uint8_t *hpub);
 
-int CompressGR(uint8_t *y,
-               size_t y_max_bytes,
-               size_t *y_len_bytes,
-               size_t *y_len_bits,
-               const int16_t *x,
-               size_t k,
-               uint32_t low,
-               uint32_t high);
+int CompressGR(int8_t *y,
+               const int32_t *x,
+               uint32_t k,
+               uint32_t *y_len_bits,
+               uint8_t low,
+               uint8_t high);
+
+int EncodePublic(uint8_t *pub,
+                 int32_t *q00,
+                 int32_t *q01,
+                 uint32_t n);
 
 int EncodeSignature(uint8_t *sig,
-                    size_t sig_len,
+                    uint32_t sig_len_bits,
                     const uint8_t *salt,
-                    const int16_t *s1);
+                    const int32_t *s1);
                     
 #endif

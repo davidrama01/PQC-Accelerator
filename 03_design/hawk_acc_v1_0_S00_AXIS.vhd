@@ -18,9 +18,9 @@ entity hawk_acc_v1_0_S00_AXIS is
 		-- End of transaction
 		eot 			: out std_logic;
 		-- Valid handshake of received data
-		valid 			: out std_logic;
+		ack_slv 		: out std_logic;
 		-- Data output
-		data_received 	: out std_logic_vector(C_S_AXIS_TDATA_WIDTH-1 downto 0);
+		data_slv	 	: out std_logic_vector(C_S_AXIS_TDATA_WIDTH-1 downto 0);
 
 		-- AXI4Stream sink: Clock
 		S_AXIS_ACLK		: in std_logic;
@@ -48,7 +48,7 @@ architecture arch_imp of hawk_acc_v1_0_S00_AXIS is
 	                             
 	signal axis_tready		: std_logic;
 	-- State variable
-	signal  mst_exec_state 	: state;  
+	signal  slv_exec_state 	: state;  
 	-- Done register
 	signal eot_d 			: std_logic;
 
@@ -56,32 +56,32 @@ begin
 	-- I/O Connections assignments
 
 	S_AXIS_TREADY	<= axis_tready;
-	data_received 	<= S_AXIS_TDATA when (S_AXIS_TVALID = '1' and axis_tready = '1') else (others => '0');
+	data_slv	 	<= S_AXIS_TDATA when (S_AXIS_TVALID = '1' and axis_tready = '1') else (others => '0');
 	eot 			<= eot_d;
-	axis_tready 	<= '1' when mst_exec_state = RECEIVE_WORD else '0';
+	axis_tready 	<= '1' when slv_exec_state = RECEIVE_WORD else '0';
 
 	-- Valid handshake generation
-	valid <= S_AXIS_TVALID and axis_tready;
+	ack_slv 		<= S_AXIS_TVALID and axis_tready;
 
 	-- State machine for start and done handling
 	process(S_AXIS_ACLK) begin
 		if S_AXIS_ARESETN = '0' then
-			mst_exec_state 	<= IDLE;
+			slv_exec_state 	<= IDLE;
 			eot_d 			<= '0';
 		elsif rising_edge(S_AXIS_ACLK) then
 			eot_d <= '0';
-			case mst_exec_state is
+			case slv_exec_state is
 				when IDLE =>
 					if sot = '1' then
-						mst_exec_state <= RECEIVE_WORD;
+						slv_exec_state <= RECEIVE_WORD;
 					end if;
 				when RECEIVE_WORD =>
 					if S_AXIS_TLAST = '1' and S_AXIS_TVALID = '1' and axis_tready = '1' then
-						mst_exec_state 	<= IDLE;
+						slv_exec_state 	<= IDLE;
 						eot_d 			<= '1';
 					end if;
 				when others =>
-					mst_exec_state <= IDLE;
+					slv_exec_state <= IDLE;
 			end case;
 		end if;
 	end process;

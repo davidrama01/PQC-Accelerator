@@ -1,6 +1,8 @@
 #include "regenerate.h"
 #include "shake256.h"
+#include <stdio.h>
 
+/* Extrae un bit LSB-first de un array de palabras de 64 bits. */
 static uint8_t get_bit_from_u64_array(const uint64_t *x,
                                       uint32_t bit_index)
 {
@@ -10,9 +12,10 @@ static uint8_t get_bit_from_u64_array(const uint64_t *x,
     return (uint8_t)((x[word_index] >> bit_pos) & 1ULL);
 }
 
+/* Regenera deterministamente f y g binomiales a partir de kgseed. */
 int RegenerateFG(const uint8_t *kgseed,
-                 int16_t *f,
-                 int16_t *g)
+                 int8_t *f,
+                 int8_t *g)
 {
     if (kgseed == NULL || f == NULL || g == NULL) {
         return -1;
@@ -61,7 +64,7 @@ int RegenerateFG(const uint8_t *kgseed,
 
     for (uint32_t i = 0; i < HAWK_N; i++) {
 
-        int16_t sum = 0;
+        int8_t sum = 0;
 
         for (uint32_t j = 0; j < b; j++) {
 
@@ -72,7 +75,7 @@ int RegenerateFG(const uint8_t *kgseed,
                                           bit_index);
         }
 
-        f[i] = sum - (int16_t)(b / 2);
+        f[i] = sum - (int8_t)(b / 2);
     }
 
     /*
@@ -81,7 +84,7 @@ int RegenerateFG(const uint8_t *kgseed,
 
     for (uint32_t i = 0; i < HAWK_N; i++) {
 
-        int16_t sum = 0;
+        int8_t sum = 0;
 
         for (uint32_t j = 0; j < b; j++) {
 
@@ -92,7 +95,7 @@ int RegenerateFG(const uint8_t *kgseed,
                                           bit_index);
         }
 
-        g[i] = sum - (int16_t)(b / 2);
+        g[i] = sum - (int8_t)(b / 2);
     }
 
     return 0;
