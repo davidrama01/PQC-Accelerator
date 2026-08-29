@@ -2,7 +2,7 @@ import secrets
 import serial
 
 
-PORT = "COM5"
+PORT = "COM4"
 BAUDRATE = 115200
 
 
