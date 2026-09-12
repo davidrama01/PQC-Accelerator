@@ -56,6 +56,7 @@
 #include "xscutimer.h"
 #include "hawk_params.h"
 #include "keygen.h"
+#include "hawk_sign.h"
 
 #define MAX_BURST 256
 #define DMA_ID XPAR_AXI_DMA_0_DEVICE_ID
@@ -67,11 +68,7 @@
 #define NUM_WORDS       (4 * WORDS_PER_512BIT + 512 + 512)
 #define NUM_BYTES       (NUM_WORDS * sizeof(s32))
 
-static XAxiDma AxiDma;
-
 s32 tx_buffer[NUM_WORDS] __attribute__((aligned(64)));
-
-XStatus status;
 
 /* Convierte una secuencia de bytes en una unica cadena hexadecimal. */
 static void bytes_to_hex(char *hex, const uint8_t *bytes, size_t length)
@@ -101,6 +98,12 @@ int main()
     xil_printf("private_key = 0x%s\r\n", priv_hex);
 
     print("Successfully ran key generation\n");
+
+    static const uint8_t message[] = "Hola HAWK";
+
+    hawk_sign(priv, message, sizeof message - 1U);
+
+    print("Successfully ran signing process");
 
 //    int status;
 //

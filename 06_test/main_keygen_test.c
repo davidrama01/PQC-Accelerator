@@ -56,20 +56,24 @@ int main(void)
 {
     uint8_t pub[HAWK_PUB_BYTES];
     uint8_t priv[HAWK_PRIV_BYTES];
-    Hawk512PrivateKey decoded;
+    uint8_t kgseed[HAWK_KGSEED_BYTES];
+    uint8_t F_mod2[HAWK_N_BYTES];
+    uint8_t G_mod2[HAWK_N_BYTES];
+    uint8_t hpub[HAWK_HPUB_BYTES];
 
     memset(pub, 0xA5, sizeof pub);
     memset(priv, 0xA5, sizeof priv);
     keygen(pub, priv);
 
-    if (DecodePrivate(&decoded, priv, sizeof priv) != 0) {
+    if (DecodePrivate(kgseed, F_mod2, G_mod2, hpub,
+                      priv, sizeof priv) != 0) {
         printf("FAIL private-key decoding\n");
         return EXIT_FAILURE;
     }
 
     uint8_t expected_hpub[HAWK_HPUB_BYTES];
     shake256(expected_hpub, sizeof expected_hpub, pub, sizeof pub);
-    if (memcmp(decoded.hpub, expected_hpub, sizeof expected_hpub) != 0) {
+    if (memcmp(hpub, expected_hpub, sizeof expected_hpub) != 0) {
         printf("FAIL hpub does not match public key\n");
         return EXIT_FAILURE;
     }
@@ -85,7 +89,7 @@ int main(void)
     uint8_t F_packed[HAWK_N_BYTES];
     uint8_t G_packed[HAWK_N_BYTES];
 
-    if (RegenerateFG(decoded.kgseed, f8, g8) != 0) {
+    if (RegenerateFG(kgseed, f8, g8) != 0) {
         printf("FAIL f,g regeneration\n");
         return EXIT_FAILURE;
     }
@@ -140,8 +144,8 @@ int main(void)
     }
     PackBits(F_packed, (const int8_t *)F_bits, HAWK_N);
     PackBits(G_packed, (const int8_t *)G_bits, HAWK_N);
-    if ((memcmp(decoded.F_mod2, F_packed, HAWK_N_BYTES) != 0) ||
-        (memcmp(decoded.G_mod2, G_packed, HAWK_N_BYTES) != 0)) {
+    if ((memcmp(F_mod2, F_packed, HAWK_N_BYTES) != 0) ||
+        (memcmp(G_mod2, G_packed, HAWK_N_BYTES) != 0)) {
         printf("FAIL encoded F/G parity does not match regenerated solution\n");
         return EXIT_FAILURE;
     }
