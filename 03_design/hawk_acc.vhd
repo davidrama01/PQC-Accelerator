@@ -13,8 +13,10 @@ entity hawk_acc is
 		data_slv    : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
 		data_mst    : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
 		ack_slv     : in  std_logic;
-        valid     : out std_logic;
-        start_mst     : out std_logic
+        valid     	: out std_logic;
+		ready		: in  std_logic;
+        start_mst   : out std_logic;
+		last_word 	: out std_logic
 	);
 end entity hawk_acc;
 
@@ -32,6 +34,7 @@ architecture rtl of hawk_acc is
 			data_in  : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
 			data_out : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
 			ack_in   : in  std_logic;
+			ready	  : in  std_logic;
             valid     : out std_logic;
 			last_word : out std_logic;
             start_out : out std_logic
@@ -58,6 +61,7 @@ begin
 		data_in  => data_slv,
 		data_out => internal_data,
 		ack_in   => ack_slv,
+		ready	  => ready,
         valid     => valid_int,
         last_word => last_word_mst,
         start_out => start_mst_internal

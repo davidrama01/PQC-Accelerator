@@ -60,7 +60,7 @@ begin
 	M_AXIS_TSTRB	<= (others => '1');
 	M_AXIS_TLAST	<= last_word;
 	M_AXIS_TVALID	<= valid;
-	M_AXIS_TDATA	<= data_mst when (valid = '1' and M_AXIS_TREADY = '1') else (others => '0');
+	M_AXIS_TDATA	<= data_mst;
 	eot 			<= eot_d;
 
 

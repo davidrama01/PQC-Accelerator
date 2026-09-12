@@ -15,6 +15,7 @@ entity hawk_sign is
 		data_in  : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
 		data_out : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
 		ack_in   : in  std_logic;
+        ready     : in  std_logic;
         valid     : out std_logic;
         last_word : out std_logic;
         start_out : out std_logic
@@ -32,7 +33,13 @@ architecture rtl of hawk_sign is
         WRITE_F, 
         WRITE_G,
         CALC_T,
-        READ_T);
+        READ_T,
+        WRITE_X0,
+        WRITE_X1,
+        CALC_W1,
+        CALC_SYM_BREAK,
+        CALC_S1,
+        READ_S1);
     signal current_state : state_t;
     signal next_state : state_t;
     signal wr_h0 : std_logic;
@@ -63,8 +70,8 @@ architecture rtl of hawk_sign is
     signal done_t1 : std_logic;
     signal t0 : std_logic_vector(c_num_samples-1 downto 0);
     signal t1 : std_logic_vector(c_num_samples-1 downto 0);
-    signal rd_t : std_logic;
     signal last_word_int : std_logic;
+    signal valid_int : std_logic;
 
     signal ram_en       : std_logic;
 	signal ram_wea      : std_logic_vector(0 downto 0);
@@ -89,11 +96,11 @@ architecture rtl of hawk_sign is
     -- attribute MARK_DEBUG of cnt_f : signal is "TRUE";
     -- attribute MARK_DEBUG of cnt_g : signal is "TRUE";
     -- attribute MARK_DEBUG of cnt_t : signal is "TRUE";
-    attribute MARK_DEBUG of h0 : signal is "TRUE";
-    attribute MARK_DEBUG of h1 : signal is "TRUE";
-    attribute MARK_DEBUG of Fmod2 : signal is "TRUE";
+    -- attribute MARK_DEBUG of h0 : signal is "TRUE";
+    -- attribute MARK_DEBUG of h1 : signal is "TRUE";
+    -- attribute MARK_DEBUG of Fmod2 : signal is "TRUE";
     -- attribute MARK_DEBUG of Gmod2 : signal is "TRUE";
-    attribute MARK_DEBUG of f_mod2 : signal is "TRUE";
+    -- attribute MARK_DEBUG of f_mod2 : signal is "TRUE";
     -- attribute MARK_DEBUG of g_mod2 : signal is "TRUE";
     -- attribute MARK_DEBUG of wea_f : signal is "TRUE";
     -- attribute MARK_DEBUG of wea_g : signal is "TRUE";
@@ -104,7 +111,6 @@ architecture rtl of hawk_sign is
     attribute MARK_DEBUG of done_t1 : signal is "TRUE";
     attribute MARK_DEBUG of t0 : signal is "TRUE";
     -- attribute MARK_DEBUG of t1 : signal is "TRUE";
-    attribute MARK_DEBUG of rd_t : signal is "TRUE";
     -- attribute MARK_DEBUG of ram_en : signal is "TRUE";
     -- attribute MARK_DEBUG of ram_wea : signal is "TRUE";
     -- attribute MARK_DEBUG of addr_f : signal is "TRUE";
@@ -157,14 +163,14 @@ begin
     -----------------------------------------------
     -- Next state logic
     -----------------------------------------------
-    next_state_logic : process(current_state, ack_in) begin
+    next_state_logic : process(all) begin
         wr_h0       <= '0';  -- Default value
         wr_h1       <= '0';  -- Default value
         wr_Fmod2    <= '0';  -- Default value
         wr_Gmod2    <= '0';  -- Default value
         wr_f        <= '0';  -- Default value
         wr_g        <= '0';  -- Default value
-        rd_t        <= '0';  -- Default value
+        valid_int   <= '0';  -- Default value
         start_t     <= '0';  -- Default value
         start_out   <= '0';  -- Default value
         next_state  <= current_state;  -- Default value
@@ -223,8 +229,9 @@ begin
                     start_out <= '1';  -- Indicate that the calculation is done
                 end if;
             when READ_T =>
-                if ack_out = '1' then
-                    rd_t <= '1';
+                valid_int <= '1';
+                if last_word_int = '1' and ready = '1' then
+                    next_state <= IDLE;
                 end if;
             when others =>
                 next_state <= IDLE;
@@ -300,28 +307,51 @@ begin
                     end if;
                 end if;
 
-                if cnt_t = c_size_fifo then
+                if cnt_t = 2 * c_size_fifo then
                     cnt_t <= 0;
-                elsif rd_t = '1' then
+                elsif valid_int = '1' and ready = '1' then
                     if cnt_t < c_size_fifo then
                         cnt_t <= cnt_t + 1;
-                        data_out <= t0((cnt_t+1)*C_DATA_WIDTH-1 downto cnt_t*C_DATA_WIDTH);
                     elsif cnt_t < 2 * c_size_fifo then
                         cnt_t <= cnt_t + 1;
-                        data_out <= t1((cnt_t-c_size_fifo+1)*C_DATA_WIDTH-1 downto (cnt_t-c_size_fifo)*C_DATA_WIDTH);
-                    end if;
-                    if cnt_t == 2 * c_size_fifo - 1 then
-                        last_word_int <= '1';
-                    else
-                        last_word_int <= '0';
                     end if;
                 end if;
             end if;
         end if;
     end process;
 
-    valid <= rd_t;  -- Valid when reading t
-    last_word <= last_word_int;  -- Indicate the last word when reading t
+    -----------------------------------------------
+    -- Combinational process to read calculations
+    -----------------------------------------------
+
+    output_process : process(all)
+    begin
+        data_out <= (others => '0');
+        last_word_int <= '0';
+
+        if current_state = READ_T then
+            if cnt_t < c_size_fifo then
+                data_out <= t0(
+                    (cnt_t + 1) * C_DATA_WIDTH - 1
+                    downto
+                    cnt_t * C_DATA_WIDTH
+                );
+            else
+                data_out <= t1(
+                    (cnt_t - c_size_fifo + 1) * C_DATA_WIDTH - 1
+                    downto
+                    (cnt_t - c_size_fifo) * C_DATA_WIDTH
+                );
+            end if;
+
+            if cnt_t = 2 * c_size_fifo - 1 then
+                last_word_int <= '1';
+            end if;
+        end if;
+    end process;
+
+    valid       <= valid_int;
+    last_word   <= last_word_int;  -- Indicate the last word when reading t
 
 	ram_en   <= '1';
     wea_f <= "1" when wr_f = '1' else "0";

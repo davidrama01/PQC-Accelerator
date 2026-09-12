@@ -129,7 +129,7 @@ architecture arch_imp of hawk_acc_v1_0 is
 		sot 			: in std_logic;
 		eot 			: out std_logic;
 		last_word		: in std_logic;
-		valid    		: out std_logic;
+		valid    		: in std_logic;
 		data_mst 		: in std_logic_vector(C_M_AXIS_TDATA_WIDTH-1 downto 0);
 		M_AXIS_ACLK		: in std_logic;
 		M_AXIS_ARESETN	: in std_logic;
@@ -151,7 +151,8 @@ architecture arch_imp of hawk_acc_v1_0 is
 			data_slv    : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
 			data_mst    : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
 			ack_slv     : in  std_logic;
-			valid     : out std_logic;
+			ready		: in  std_logic;
+			valid     	: out std_logic;
 			last_word   : out std_logic;
 			start_mst   : out std_logic
 		);
@@ -255,7 +256,8 @@ hawk_acc_inst : hawk_acc
 		data_slv    => data_slv,
 		data_mst    => data_mst,
 		ack_slv     => ack_slv,
-		valid     => valid,
+		ready	    => m00_axis_tready,
+		valid     	=> valid,
 		last_word   => last_word,
 		start_mst   => start_mst
 	);

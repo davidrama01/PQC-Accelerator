@@ -35,8 +35,7 @@ signal done_d : std_logic;
 
 component poly_mul_mod2
     generic (
-        g_num_samples : integer := 512;
-        g_num_phases : integer := 1
+        g_num_samples : integer := 512
     );
     port (
         clk     : in std_logic;
@@ -82,8 +81,7 @@ begin
 
     mul_regen: poly_mul_mod2
         generic map (
-            g_num_samples => g_num_samples,
-            g_num_phases => c_num_phases
+            g_num_samples => g_num_samples
         )
         port map (
             clk => clk,
@@ -97,8 +95,7 @@ begin
 
     mul_decoded: poly_mul_mod2
         generic map (
-            g_num_samples => g_num_samples,
-            g_num_phases => c_num_phases
+            g_num_samples => g_num_samples
         )
         port map (
             clk => clk,
