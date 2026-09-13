@@ -13,14 +13,16 @@
 #define HAWK_FPGA_START_OFFSET  HAWK_ACC_S00_AXI_SLV_REG0_OFFSET
 
 #define HAWK_FPGA_INPUT_WORDS   (4U * HAWK_N_WORDS32 + 2U * HAWK_N)
-#define HAWK_FPGA_OUTPUT_WORDS  (2U * HAWK_N_WORDS32)
+#define HAWK_FPGA_X_WORDS       (2U * HAWK_N)
+#define HAWK_FPGA_T_OUTPUT_WORDS (2U * HAWK_N_WORDS32)
+#define HAWK_FPGA_RX_WORDS      HAWK_N
 #define HAWK_FPGA_DMA_TIMEOUT   100000000U
 
 static XAxiDma hawk_dma;
 
 static int32_t hawk_tx_buffer[HAWK_FPGA_INPUT_WORDS]
     __attribute__((aligned(64)));
-static uint32_t hawk_rx_buffer[HAWK_FPGA_OUTPUT_WORDS]
+static uint32_t hawk_rx_buffer[HAWK_FPGA_RX_WORDS]
     __attribute__((aligned(64)));
 
 static int WaitForDma(unsigned direction)
@@ -173,6 +175,69 @@ int HawkFpgaInit(void)
     return 0;
 }
 
+int HawkFpgaSendX(const int32_t x0[HAWK_N],
+                  const int32_t x1[HAWK_N])
+{
+    const size_t transfer_bytes =
+        HAWK_FPGA_X_WORDS * sizeof(hawk_tx_buffer[0]);
+    int status;
+
+    if (x0 == NULL || x1 == NULL) {
+        return -1;
+    }
+
+    memcpy(hawk_tx_buffer, x0, HAWK_N * sizeof(*x0));
+    memcpy(hawk_tx_buffer + HAWK_N, x1, HAWK_N * sizeof(*x1));
+    Xil_DCacheFlushRange((UINTPTR)hawk_tx_buffer, transfer_bytes);
+
+    /* Rearma la entrada AXI Stream para este segundo paquete DMA. */
+    HAWK_ACC_mWriteReg(HAWK_FPGA_AXI_ADDR, HAWK_FPGA_START_OFFSET, 1U);
+
+    status = XAxiDma_SimpleTransfer(&hawk_dma,
+                                    (UINTPTR)hawk_tx_buffer,
+                                    transfer_bytes,
+                                    XAXIDMA_DMA_TO_DEVICE);
+    if (status != XST_SUCCESS) {
+        return -2;
+    }
+
+    if (WaitForDma(XAXIDMA_DMA_TO_DEVICE) != 0) {
+        return -3;
+    }
+
+    return 0;
+}
+
+int HawkFpgaReceiveS1(int32_t s1[HAWK_N])
+{
+    int status;
+
+    if (s1 == NULL) {
+        return -1;
+    }
+
+    Xil_DCacheInvalidateRange((UINTPTR)hawk_rx_buffer,
+                              sizeof hawk_rx_buffer);
+
+    status = XAxiDma_SimpleTransfer(&hawk_dma,
+                                    (UINTPTR)hawk_rx_buffer,
+                                    sizeof hawk_rx_buffer,
+                                    XAXIDMA_DEVICE_TO_DMA);
+    if (status != XST_SUCCESS) {
+        return -2;
+    }
+
+    if (WaitForDma(XAXIDMA_DEVICE_TO_DMA) != 0) {
+        return -3;
+    }
+
+    Xil_DCacheInvalidateRange((UINTPTR)hawk_rx_buffer,
+                              sizeof hawk_rx_buffer);
+    memcpy(s1, hawk_rx_buffer, HAWK_N * sizeof(*s1));
+
+    return 0;
+}
+
 int HawkFpgaCalculateT(const uint32_t h0[HAWK_N_WORDS32],
                        const uint32_t h1[HAWK_N_WORDS32],
                        const uint32_t F_mod2[HAWK_N_WORDS32],
@@ -201,7 +266,9 @@ int HawkFpgaCalculateT(const uint32_t h0[HAWK_N_WORDS32],
 
     BuildInputBuffer(h0, h1, F_mod2, G_mod2, f, g);
     Xil_DCacheFlushRange((UINTPTR)hawk_tx_buffer, sizeof hawk_tx_buffer);
-    Xil_DCacheInvalidateRange((UINTPTR)hawk_rx_buffer, sizeof hawk_rx_buffer);
+    Xil_DCacheInvalidateRange(
+        (UINTPTR)hawk_rx_buffer,
+        HAWK_FPGA_T_OUTPUT_WORDS * sizeof(hawk_rx_buffer[0]));
 
     HAWK_ACC_mWriteReg(HAWK_FPGA_AXI_ADDR, HAWK_FPGA_START_OFFSET, 1U);
 
@@ -217,7 +284,8 @@ int HawkFpgaCalculateT(const uint32_t h0[HAWK_N_WORDS32],
     /* Preparar S2MM antes de arrancar el cálculo y generar TVALID. */
     status = XAxiDma_SimpleTransfer(&hawk_dma,
                                     (UINTPTR)hawk_rx_buffer,
-                                    sizeof hawk_rx_buffer,
+                                    HAWK_FPGA_T_OUTPUT_WORDS *
+                                        sizeof(hawk_rx_buffer[0]),
                                     XAXIDMA_DEVICE_TO_DMA);
     if (status != XST_SUCCESS) {
         return -5;
@@ -230,7 +298,9 @@ int HawkFpgaCalculateT(const uint32_t h0[HAWK_N_WORDS32],
         return -7;
     }
 
-    Xil_DCacheInvalidateRange((UINTPTR)hawk_rx_buffer, sizeof hawk_rx_buffer);
+    Xil_DCacheInvalidateRange(
+        (UINTPTR)hawk_rx_buffer,
+        HAWK_FPGA_T_OUTPUT_WORDS * sizeof(hawk_rx_buffer[0]));
     memcpy(t0, hawk_rx_buffer, HAWK_N_WORDS32 * sizeof(uint32_t));
     memcpy(t1, hawk_rx_buffer + HAWK_N_WORDS32,
            HAWK_N_WORDS32 * sizeof(uint32_t));

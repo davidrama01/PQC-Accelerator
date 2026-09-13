@@ -21,4 +21,11 @@ int HawkFpgaCalculateT(const uint32_t h0[HAWK_N_WORDS32],
                        uint32_t t0[HAWK_N_WORDS32],
                        uint32_t t1[HAWK_N_WORDS32]);
 
+/* Envia x0 seguido de x1: HAWK_N coeficientes int32_t por polinomio. */
+int HawkFpgaSendX(const int32_t x0[HAWK_N],
+                  const int32_t x1[HAWK_N]);
+
+/* Recibe mediante DMA los HAWK_N coeficientes de 32 bits de s1. */
+int HawkFpgaReceiveS1(int32_t s1[HAWK_N]);
+
 #endif

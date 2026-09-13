@@ -10,12 +10,15 @@
 #include "hawk_fpga.h"
 #include "sampler_sign.h"
 
-void hawk_sign (const uint8_t *priv, const uint8_t *message, size_t message_len)
+int hawk_sign(uint8_t sig[HAWK_SIG_BYTES],
+              const uint8_t *priv,
+              const uint8_t *message,
+              size_t message_len)
 {
-    if (priv == NULL ||
+    if (sig == NULL || priv == NULL ||
         (message == NULL && message_len != 0U) ||
         message_len > SIZE_MAX - HAWK_HPUB_BYTES) {
-        return;
+        return -1;
     }
 
     uint8_t kgseed[HAWK_KGSEED_BYTES];
@@ -47,19 +50,20 @@ void hawk_sign (const uint8_t *priv, const uint8_t *message, size_t message_len)
     uint32_t t1_words[HAWK_N_WORDS32];
     uint8_t t[2U * HAWK_N_BYTES];
     int16_t x[2U * HAWK_N];
+    int32_t s1[HAWK_N];
 
 
     if (DecodePrivate(kgseed, Fmod2, Gmod2, hpub,
                       priv, HAWK_PRIV_BYTES) != 0) {
-        return;
+        return -1;
     }
     if (RegenerateFG(kgseed, f_regen, g_regen) != 0) {
-        return;
+        return -1;
     }
     if (ConcatBytes2(message_concat, sizeof message_concat,
                      message, message_len,
                      hpub, HAWK_HPUB_BYTES) != 0) {
-        return;
+        return -1;
     }
     shake256(message_shake, HAWK_M_BYTES,
              message_concat, sizeof message_concat);
@@ -69,20 +73,20 @@ void hawk_sign (const uint8_t *priv, const uint8_t *message, size_t message_len)
        las condiciones de rechazo de las lineas posteriores. */
     EncodeIntBytes(a_encoded, a, 32U);
     if (Rnd(randomize_salt, HAWK_SALTLEN_BITS) != 0) {
-        return;
+        return -1;
     }
     if (ConcatBytes4(salt_concat, sizeof salt_concat,
                      message_shake, sizeof message_shake,
                      kgseed, sizeof kgseed,
                      a_encoded, sizeof a_encoded,
                      randomize_salt, sizeof randomize_salt) != 0) {
-        return;
+        return -1;
     }
     shake256(salt, sizeof salt, salt_concat, sizeof salt_concat);
     if (ConcatBytes2(h_concat, sizeof h_concat,
                      message_shake, HAWK_M_BYTES,
                      salt, sizeof salt) != 0) {
-        return;
+        return -1;
     }
     shake256(h_shake, sizeof h_shake, h_concat, sizeof h_concat);
     memcpy(h0, h_shake, HAWK_N_BYTES);
@@ -96,7 +100,7 @@ void hawk_sign (const uint8_t *priv, const uint8_t *message, size_t message_len)
                        Fmod2, sizeof Fmod2) != 0 ||
         BytesToWords32(G_words, HAWK_N_WORDS32,
                        Gmod2, sizeof Gmod2) != 0) {
-        return;
+        return -1;
     }
 
     for (uint32_t i = 0U; i < HAWK_N; i++) {
@@ -106,13 +110,13 @@ void hawk_sign (const uint8_t *priv, const uint8_t *message, size_t message_len)
 
     if (HawkFpgaCalculateT(h0_words, h1_words, F_words, G_words,
                            f_words, g_words, t0_words, t1_words) != 0) {
-        return;
+        return -1;
     }
 
     EncodeIntBytes(a_encoded, a + 1U, 32U);
 
     if (Rnd(randomize_320, 320U) != 0) {
-        return;
+        return -1;
     }
 
     if (ConcatBytes4(seed, sizeof seed,
@@ -120,7 +124,7 @@ void hawk_sign (const uint8_t *priv, const uint8_t *message, size_t message_len)
                      kgseed, sizeof kgseed,
                      a_encoded, sizeof a_encoded,
                      randomize_320, sizeof randomize_320) != 0) {
-        return;
+        return -1;
     }
 
     for (uint32_t i = 0U; i < HAWK_N_WORDS32; i++) {
@@ -129,7 +133,7 @@ void hawk_sign (const uint8_t *priv, const uint8_t *message, size_t message_len)
     }
 
     if (SamplerSign(seed, sizeof seed, t, x) != 0) {
-        return;
+        return -1;
     }
 
     int32_t x0_words[HAWK_N];
@@ -149,8 +153,21 @@ void hawk_sign (const uint8_t *priv, const uint8_t *message, size_t message_len)
         norm_squared += (uint64_t)(coefficient * coefficient);
     }
 
+    if (HawkFpgaSendX(x0_words, x1_words) != 0) {
+        return -1;
+    }
+
+    if (HawkFpgaReceiveS1(s1) != 0) {
+        return -1;
+    }
+
     if (norm_squared > NORM_THR) {
         goto restart;
     }
 
+    if (EncodeSignature(sig, HAWK_SIG_BYTES * 8U, salt, s1) != 0) {
+        goto restart;
+    }
+
+    return 0;
 }

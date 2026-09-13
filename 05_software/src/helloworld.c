@@ -87,8 +87,10 @@ int main()
     init_platform();
     uint8_t pub[HAWK_PUB_BYTES];
     uint8_t priv[HAWK_PRIV_BYTES];
+    uint8_t sig[HAWK_SIG_BYTES];
     char pub_hex[2U * HAWK_PUB_BYTES + 1U];
     char priv_hex[2U * HAWK_PRIV_BYTES + 1U];
+    char sig_hex[2U * HAWK_SIG_BYTES + 1U];
 
     keygen(pub, priv);
     bytes_to_hex(pub_hex, pub, HAWK_PUB_BYTES);
@@ -101,9 +103,13 @@ int main()
 
     static const uint8_t message[] = "Hola HAWK";
 
-    hawk_sign(priv, message, sizeof message - 1U);
-
-    print("Successfully ran signing process");
+    if (hawk_sign(sig, priv, message, sizeof message - 1U) == 0) {
+        bytes_to_hex(sig_hex, sig, HAWK_SIG_BYTES);
+        xil_printf("signature = 0x%s\r\n", sig_hex);
+        print("Successfully ran signing process\n");
+    } else {
+        print("Signing process failed\n");
+    }
 
 //    int status;
 //
