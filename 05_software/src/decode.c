@@ -19,33 +19,37 @@ uint64_t DecodeInt(const uint8_t *bits,
 }
 
 /* Separa y decodifica los campos de una clave privada HAWK-512. */
-int DecodePrivate(Hawk512PrivateKey *out,
+int DecodePrivate(uint8_t *kgseed,
+                  uint8_t *F_mod2,
+                  uint8_t *G_mod2,
+                  uint8_t *hpub,
                   const uint8_t *priv,
                   size_t priv_len)
 {
     size_t offset = 0;
 
-    if (out == NULL || priv == NULL) {
+    if (kgseed == NULL || F_mod2 == NULL || G_mod2 == NULL ||
+        hpub == NULL || priv == NULL) {
         return -1;
     }
 
-    if (priv_len != HAWK512_PRIV_BYTES) {
+    if (priv_len != HAWK_PRIV_BYTES) {
         return -2;
     }
 
-    memcpy(out->kgseed, priv + offset, HAWK512_KGSEED_BYTES);
-    offset += HAWK512_KGSEED_BYTES;
+    memcpy(kgseed, priv + offset, HAWK_KGSEED_BYTES);
+    offset += HAWK_KGSEED_BYTES;
 
-    memcpy(out->F_mod2, priv + offset, HAWK512_N_BYTES);
-    offset += HAWK512_N_BYTES;
+    memcpy(F_mod2, priv + offset, HAWK_N_BYTES);
+    offset += HAWK_N_BYTES;
 
-    memcpy(out->G_mod2, priv + offset, HAWK512_N_BYTES);
-    offset += HAWK512_N_BYTES;
+    memcpy(G_mod2, priv + offset, HAWK_N_BYTES);
+    offset += HAWK_N_BYTES;
 
-    memcpy(out->hpub, priv + offset, HAWK512_HPUB_BYTES);
-    offset += HAWK512_HPUB_BYTES;
+    memcpy(hpub, priv + offset, HAWK_HPUB_BYTES);
+    offset += HAWK_HPUB_BYTES;
 
-    if (offset != HAWK512_PRIV_BYTES) {
+    if (offset != HAWK_PRIV_BYTES) {
         return -3;
     }
 

@@ -4,6 +4,159 @@
 #include <math.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
+
+/* Concatena dos secuencias de bytes: out = first || second. */
+int ConcatBytes2(uint8_t *out,
+                 size_t out_len,
+                 const uint8_t *first,
+                 size_t first_len,
+                 const uint8_t *second,
+                 size_t second_len)
+{
+    if (out == NULL ||
+        (first == NULL && first_len != 0U) ||
+        (second == NULL && second_len != 0U)) {
+        return -1;
+    }
+
+    if (first_len > SIZE_MAX - second_len ||
+        out_len < first_len + second_len) {
+        return -2;
+    }
+
+    if (first_len != 0U) {
+        memcpy(out, first, first_len);
+    }
+    if (second_len != 0U) {
+        memcpy(out + first_len, second, second_len);
+    }
+
+    return 0;
+}
+
+/* Concatena cuatro secuencias: out = first || second || third || fourth. */
+int ConcatBytes4(uint8_t *out,
+                 size_t out_len,
+                 const uint8_t *first,
+                 size_t first_len,
+                 const uint8_t *second,
+                 size_t second_len,
+                 const uint8_t *third,
+                 size_t third_len,
+                 const uint8_t *fourth,
+                 size_t fourth_len)
+{
+    size_t total_len;
+    size_t offset = 0U;
+
+    if (out == NULL ||
+        (first == NULL && first_len != 0U) ||
+        (second == NULL && second_len != 0U) ||
+        (third == NULL && third_len != 0U) ||
+        (fourth == NULL && fourth_len != 0U)) {
+        return -1;
+    }
+
+    if (first_len > SIZE_MAX - second_len) {
+        return -2;
+    }
+    total_len = first_len + second_len;
+    if (total_len > SIZE_MAX - third_len) {
+        return -2;
+    }
+    total_len += third_len;
+    if (total_len > SIZE_MAX - fourth_len) {
+        return -2;
+    }
+    total_len += fourth_len;
+    if (out_len < total_len) {
+        return -2;
+    }
+
+    if (first_len != 0U) {
+        memcpy(out + offset, first, first_len);
+        offset += first_len;
+    }
+    if (second_len != 0U) {
+        memcpy(out + offset, second, second_len);
+        offset += second_len;
+    }
+    if (third_len != 0U) {
+        memcpy(out + offset, third, third_len);
+        offset += third_len;
+    }
+    if (fourth_len != 0U) {
+        memcpy(out + offset, fourth, fourth_len);
+    }
+
+    return 0;
+}
+
+/* Agrupa bytes en palabras de 32 bits en orden little-endian. */
+int BytesToWords32(uint32_t *out,
+                   size_t out_words,
+                   const uint8_t *in,
+                   size_t in_len)
+{
+    size_t required_words;
+
+    if (out == NULL || (in == NULL && in_len != 0U)) {
+        return -1;
+    }
+    if ((in_len % 4U) != 0U) {
+        return -2;
+    }
+
+    required_words = in_len / 4U;
+    if (out_words < required_words) {
+        return -2;
+    }
+
+    for (size_t i = 0U; i < required_words; i++) {
+        out[i] = ((uint32_t)in[4U * i]) |
+                 ((uint32_t)in[4U * i + 1U] << 8U) |
+                 ((uint32_t)in[4U * i + 2U] << 16U) |
+                 ((uint32_t)in[4U * i + 3U] << 24U);
+    }
+
+    return 0;
+}
+
+/* Reduce coeficientes modulo 2 y agrupa 32 paridades por palabra. */
+int PolyParityToWords32(uint32_t *out,
+                        size_t out_words,
+                        const int8_t *poly,
+                        size_t n)
+{
+    size_t required_words;
+
+    if (out == NULL || (poly == NULL && n != 0U)) {
+        return -1;
+    }
+    if ((n % 32U) != 0U) {
+        return -2;
+    }
+
+    required_words = n / 32U;
+    if (out_words < required_words) {
+        return -2;
+    }
+
+    for (size_t i = 0U; i < required_words; i++) {
+        uint32_t word = 0U;
+
+        for (size_t j = 0U; j < 32U; j++) {
+            size_t coefficient = 32U * i + j;
+            uint32_t parity = (uint32_t)((uint8_t)poly[coefficient] & 1U);
+
+            word |= parity << j;
+        }
+        out[i] = word;
+    }
+
+    return 0;
+}
 
 /* Calcula el adjunto f*(x)=f(x^-1) en Z[x]/(x^n+1). */
 void reciprocal(int32_t *f, int32_t *f_rec, uint32_t n)
