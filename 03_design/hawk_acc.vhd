@@ -24,15 +24,16 @@ architecture rtl of hawk_acc is
 
 	component hawk_sign is
 		generic (
-			C_DATA_WIDTH : integer := 32;
+			g_data_width : integer := 32;
             g_num_samples : integer := 512;
+            g_addr_width : integer := 9;
             g_size_fifo : integer := 32
 		);
 		port (
 			clk      : in  std_logic;
 			rst_n    : in  std_logic;
-			data_in  : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
-			data_out : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
+			data_in  : in  std_logic_vector(g_data_width-1 downto 0);
+			data_out : out std_logic_vector(g_data_width-1 downto 0);
 			ack_in   : in  std_logic;
 			ready	  : in  std_logic;
             valid     : out std_logic;
@@ -51,8 +52,9 @@ begin
 
 	hawk_sign_inst : hawk_sign
 	generic map (
-		C_DATA_WIDTH => C_DATA_WIDTH,
+		g_data_width => C_DATA_WIDTH,
 		g_num_samples => c_num_samples,
+		g_addr_width => 9,
 		g_size_fifo => c_size_fifo
 	)
 	port map (
