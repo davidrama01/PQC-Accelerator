@@ -18,6 +18,7 @@ architecture simulation of fft_tb is
     signal done           : std_logic;
     signal data_in        : std_logic_vector(C_DATA_WIDTH - 1 downto 0) :=
                             (others => '0');
+    signal data_in_valid  : std_logic := '0';
     signal data_out       : std_logic_vector(C_DATA_WIDTH - 1 downto 0);
     signal data_out_valid : std_logic;
 begin
@@ -37,6 +38,7 @@ begin
             start          => start,
             done           => done,
             data_in        => data_in,
+            data_in_valid  => data_in_valid,
             data_out       => data_out,
             data_out_valid => data_out_valid
         );
@@ -48,7 +50,6 @@ begin
         -- Reset sincrono, activo a nivel bajo.
         rst_n <= '0';
         wait until rising_edge(clk);
-        wait until rising_edge(clk);
         rst_n <= '1';
         wait until rising_edge(clk);
 
@@ -59,13 +60,13 @@ begin
 
         -- Vector nulo. Permite comprobar el recorrido completo utilizando
         -- la RAM y la ROM reales: su transformada tambien debe ser nula.
-        -- La interfaz actual consume un dato cada dos ciclos, en los estados
-        -- ST_INIT_RAM y ST_COMMIT_INIT.
+        -- data_in_valid permanece activo y la FFT acepta un dato por ciclo.
+        data_in_valid <= '1';
         for i in 0 to C_NUM_SAMPLES - 1 loop
             data_in <= (others => '0');
             wait until rising_edge(clk);
-            wait until rising_edge(clk);
         end loop;
+        data_in_valid <= '0';
 
         -- Cuenta y comprueba las palabras entregadas por la FFT.
         while done = '0' loop
@@ -98,7 +99,6 @@ begin
         -- Reinicia el bloque para ejecutar una segunda transformada.
         rst_n <= '0';
         wait until rising_edge(clk);
-        wait until rising_edge(clk);
         rst_n <= '1';
         wait until rising_edge(clk);
 
@@ -110,12 +110,13 @@ begin
         start <= '0';
 
         -- Patron determinista no nulo con coeficientes positivos y negativos.
+        data_in_valid <= '1';
         for i in 0 to C_NUM_SAMPLES - 1 loop
             data_in <= std_logic_vector(to_signed(
                 ((i * 37 + 11) mod 257) - 128, C_DATA_WIDTH));
             wait until rising_edge(clk);
-            wait until rising_edge(clk);
         end loop;
+        data_in_valid <= '0';
 
         while done = '0' loop
             wait until rising_edge(clk);

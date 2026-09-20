@@ -12,6 +12,7 @@ entity fft is
         clk         : in std_logic;
         rst_n       : in std_logic;
         start       : in std_logic;
+        data_in_valid : in std_logic;
         done        : out std_logic;
         data_in     : in std_logic_vector(g_data_width - 1 downto 0);
         data_out    : out std_logic_vector(g_data_width - 1 downto 0);
@@ -21,11 +22,10 @@ end entity fft;
 
 architecture rtl of fft is
 
-    -- La FSM separa explicitamente las peticiones a memoria, los ciclos de
-    -- espera y la captura/confirmacion. De este modo se respeta la latencia
-    -- sincrona de las BRAM/ROM y todas las operaciones aritmeticas quedan
-    -- delimitadas por registros.
-    type state_t is (ST_IDLE, ST_INIT_RAM, ST_COMMIT_INIT, ST_RD_DELTA, ST_WAIT_DELTA, ST_CAPTURE_DELTA, ST_RD_X1, ST_WAIT_X1, ST_CAPTURE_X1, ST_RD_X2, ST_WAIT_X2, ST_CAPTURE_X2, ST_MUL, ST_TRANSFORM, ST_WR_T1, ST_COMMIT_T1, ST_WR_T2, ST_COMMIT_T2, ST_RD_FFT_INIT, ST_RD_FFT_WAIT, ST_RD_FFT, ST_DONE);
+    -- La carga inicial acepta una palabra por ciclo cuando data_in_valid=1.
+    -- El resto de la FSM separa las peticiones a memoria, los ciclos de
+    -- espera y la captura/confirmacion para respetar las latencias sincrónicas.
+    type state_t is (ST_IDLE, ST_INIT_RAM, ST_RD_DELTA, ST_WAIT_DELTA, ST_CAPTURE_DELTA, ST_RD_X1, ST_WAIT_X1, ST_CAPTURE_X1, ST_RD_X2, ST_WAIT_X2, ST_CAPTURE_X2, ST_MUL, ST_TRANSFORM, ST_WR_T1, ST_COMMIT_T1, ST_WR_T2, ST_COMMIT_T2, ST_RD_FFT_INIT, ST_RD_FFT_WAIT, ST_RD_FFT, ST_DONE);
     signal state     : state_t;
     signal next_state : state_t;
 
@@ -45,6 +45,7 @@ architecture rtl of fft is
     -- Los dos puertos permiten acceder a ambas partes en el mismo ciclo.
     signal data_a : std_logic_vector(g_data_width - 1 downto 0);
     signal data_b : std_logic_vector(g_data_width - 1 downto 0);
+    signal ram_dina : std_logic_vector(g_data_width - 1 downto 0);
 
     -- Cuenta las palabras ya entregadas durante la lectura final. Tras cebar
     -- la tuberia de lectura, data_out_valid se activa durante 512 ciclos.
@@ -83,6 +84,8 @@ architecture rtl of fft is
     signal prod_ir : signed(2 * g_data_width - 1 downto 0);
 
     signal data_out_reg : std_logic_vector(g_data_width - 1 downto 0);
+
+    signal read_valid : std_logic;
 
     component blk_mem_gen_1
 		port (
@@ -144,19 +147,15 @@ begin
                 end if;
 
             when ST_INIT_RAM =>
-                -- Registra una palabra de entrada sin escribir todavia.
-                next_state <= ST_COMMIT_INIT;
+                -- La BRAM escribe data_in en el mismo flanco en el que valid
+                -- esta activo. Si valid baja, se conservan dato y direccion.
+                if data_in_valid = '1' then
+                    ram_fft_en <= '1';
+                    ram_fft_we <= (others => '1');
 
-            when ST_COMMIT_INIT =>
-                -- La direccion y data_a ya son estables; este ciclo confirma
-                -- la escritura antes de avanzar a la siguiente palabra.
-                ram_fft_en <= '1';
-                ram_fft_we <= (others => '1');
-
-                if unsigned(ram_addra) = g_num_samples - 1 then
-                    next_state <= ST_RD_DELTA;
-                else
-                    next_state <= ST_INIT_RAM;
+                    if unsigned(ram_addra) = g_num_samples - 1 then
+                        next_state <= ST_RD_DELTA;
+                    end if;
                 end if;
 
             when ST_RD_DELTA =>
@@ -164,7 +163,9 @@ begin
                 next_state <= ST_WAIT_DELTA;
 
             when ST_WAIT_DELTA =>
-                next_state <= ST_CAPTURE_DELTA;
+                if read_valid = '1' then
+                    next_state <= ST_CAPTURE_DELTA;
+                end if;
 
             when ST_CAPTURE_DELTA =>
                 next_state <= ST_RD_X1;
@@ -178,7 +179,9 @@ begin
             when ST_WAIT_X1 =>
                 ram_fft_en <= '1';
                 ram_fft_enb <= '1';
-                next_state <= ST_CAPTURE_X1;
+                if read_valid = '1' then
+                    next_state <= ST_CAPTURE_X1;
+                end if;
 
             when ST_CAPTURE_X1 =>
                 next_state <= ST_RD_X2;
@@ -192,7 +195,9 @@ begin
             when ST_WAIT_X2 =>
                 ram_fft_en <= '1';
                 ram_fft_enb <= '1';
-                next_state <= ST_CAPTURE_X2;
+                if read_valid = '1' then
+                    next_state <= ST_CAPTURE_X2;
+                end if;
 
             when ST_CAPTURE_X2 =>
                 next_state <= ST_MUL;
@@ -245,7 +250,9 @@ begin
 
             when ST_RD_FFT_WAIT =>
                 ram_fft_en <= '1';
-                next_state <= ST_RD_FFT;
+                if read_valid = '1' then
+                    next_state <= ST_RD_FFT;
+                end if;
 
             when ST_RD_FFT =>
                 -- Una vez cebada la BRAM se obtiene una palabra por ciclo.
@@ -292,8 +299,10 @@ begin
                 t_imag <= (others => '0');
                 data_a <= (others => '0');
                 data_b <= (others => '0');
+                read_valid <= '0';
             else
                 data_out_valid_reg <= '0';
+                read_valid <= '0';
                 case state is
                 when ST_IDLE =>
                     ram_addra <= (others => '0');
@@ -308,24 +317,23 @@ begin
                     fft_out_count <= 0;
 
                 when ST_INIT_RAM =>
-                    data_a   <= data_in;
-
-                when ST_COMMIT_INIT =>
-                    if unsigned(ram_addra) = g_num_samples - 1 then
-                        ram_addra <= (others => '0');
-                        ram_addrb <= (others => '0');
-                    else
-                        ram_addra <= std_logic_vector(unsigned(ram_addra) + 1);
-                        ram_addrb <= std_logic_vector(unsigned(ram_addrb) + 1);
+                    if data_in_valid = '1' then
+                        if unsigned(ram_addra) = g_num_samples - 1 then
+                            ram_addra <= (others => '0');
+                        else
+                            ram_addra <= std_logic_vector(unsigned(ram_addra) + 1);
+                        end if;
                     end if;
 
                 when ST_RD_DELTA =>
                     rom_enable <= '1';
 
                 when ST_WAIT_DELTA =>
-                    rom_enable <= '0';
+                    rom_enable <= '1';
+                    read_valid <= '1';
 
                 when ST_CAPTURE_DELTA =>
+                    rom_enable <= '0';
                     -- Delta se almacena en formato complejo Q31: parte real
                     -- en los 32 bits bajos e imaginaria en los 32 altos.
                     delta_real <= signed(rom_delta(g_data_width - 1 downto 0));
@@ -340,7 +348,7 @@ begin
                         ram_addrb'length));
 
                 when ST_WAIT_X1 =>
-                    null;
+                    read_valid <= '1';
 
                 when ST_CAPTURE_X1 =>
                     x1_real <= signed(ram_douta);
@@ -356,7 +364,7 @@ begin
                         ram_addrb'length));
 
                 when ST_WAIT_X2 =>
-                    null;
+                    read_valid <= '1';
 
                 when ST_CAPTURE_X2 =>
                     x2_real <= signed(ram_douta);
@@ -429,8 +437,8 @@ begin
 
                 when ST_RD_FFT_WAIT =>
                     -- La direccion 0 esta en vuelo; se adelanta la direccion 1.
-                    ram_addra <= std_logic_vector(to_unsigned(
-                        1, ram_addra'length));
+                    ram_addra <= std_logic_vector(to_unsigned(1, ram_addra'length));
+                    read_valid <= '1';
 
                 when ST_RD_FFT =>
                     -- count es la palabra capturada, count+1 ya esta en vuelo
@@ -463,6 +471,9 @@ begin
     -- Indice del twiddle de la etapa y grupo actuales.
     addr_delta <= std_logic_vector(resize(unsigned(u) + unsigned(m), addr_delta'length));
     data_out <= data_out_reg;
+    -- Durante la carga se evita un registro intermedio: la BRAM muestrea el
+    -- data_in actual en cada flanco valido. En las mariposas usa data_a.
+    ram_dina <= data_in when state = ST_INIT_RAM else data_a;
 
     ram_fft : blk_mem_gen_1
 		port map (
@@ -470,7 +481,7 @@ begin
 			ena   => ram_fft_en,
 			wea   => ram_fft_we,
 			addra => ram_addra,
-			dina  => data_a,
+			dina  => ram_dina,
 			douta => ram_douta,
 			clkb  => clk,
 			enb   => ram_fft_enb,
