@@ -437,7 +437,7 @@ begin
 
                 when ST_RD_FFT_WAIT =>
                     -- La direccion 0 esta en vuelo; se adelanta la direccion 1.
-                    ram_addra <= std_logic_vector(to_unsigned(1, ram_addra'length));
+                    ram_addra <= std_logic_vector(unsigned(ram_addra) + to_unsigned(1, ram_addra'length));
                     read_valid <= '1';
 
                 when ST_RD_FFT =>
@@ -449,9 +449,9 @@ begin
                     if fft_out_count < g_num_samples - 1 then
                         fft_out_count <= fft_out_count + 1;
 
-                        if fft_out_count < g_num_samples - 2 then
+                        if fft_out_count < g_num_samples - 3 then
                             ram_addra <= std_logic_vector(to_unsigned(
-                                fft_out_count + 2, ram_addra'length));
+                                fft_out_count + 3, ram_addra'length));
                         end if;
                     end if;
 
