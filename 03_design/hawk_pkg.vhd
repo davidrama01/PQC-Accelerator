@@ -26,16 +26,19 @@ package hawk_pkg is
 
     -- Rebuild S0 constants
 
-    constant c_w1 : integer range 0 to 29 := 29 - 1 - c_high_s1;
-    constant c_q00 : integer range 0 to 29 := 29 - c_high_q00;
-    constant c_q01 : integer range 0 to 29 := 29 - c_high_q01;
-    constant c_s0  : integer range 0 to 29 := (2 * c_w1 * c_q01) / (c_num_samples * c_q00);
+    function clog2(value : positive) return natural;
+
+    constant c_w1_shift  : integer range 0 to 29 := 29 - 1 - c_high_s1;
+    constant c_q00_shift : integer range 0 to 29 := 29 - c_high_q00;
+    constant c_q01_shift : integer range 0 to 29 := 29 - c_high_q01;
+    constant c_s0_shift  : integer range 0 to 29 := 1 + c_w1_shift + c_q01_shift - clog2(c_num_samples) - c_q00_shift;
 
     -- Types
     -- type t_poly_coef is array (natural range <>) of signed(natural range <>);
 
     -- Functions
     --function parity_check(data : std_logic_vector) return std_logic;
+    
 
     -- Procedures
     --procedure increment_counter(signal cnt : inout integer);

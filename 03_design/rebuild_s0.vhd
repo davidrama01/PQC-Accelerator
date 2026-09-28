@@ -2,7 +2,7 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
-use hawk_pkg.ALL;
+use work.hawk_pkg.ALL;
 
 entity rebuild_s0 is
     generic (
@@ -22,7 +22,7 @@ entity rebuild_s0 is
         data_h0        : in std_logic_vector(g_num_samples -1 downto 0);
         data_out       : out std_logic_vector(g_data_width - 1 downto 0);
         data_out_valid : out std_logic;
-        error          : out std_logic;
+        error          : out std_logic
     );
 end entity rebuild_s0;
 
@@ -31,14 +31,14 @@ architecture rtl of rebuild_s0 is
     -- La carga inicial acepta una palabra por ciclo cuando data_in_valid=1.
     -- El resto de la FSM separa las peticiones a memoria, los ciclos de
     -- espera y la captura/confirmacion para respetar las latencias sincrónicas.
-    type state_t is (ST_IDLE, ST_RESCALE, ST_WR_FFT, ST_COMMIT_FFT, ST_RD_FFT, ST_WAIT_FFT, ST_CAPTURE_FFT, ST_CALC_X, , ST_WR_Q01, ST_COMMIT_Q01, ST_RD_Q01, ST_RD_Q01_WAIT, ST_RD_Q01_CAPTURE, ST_WR_FIFO, ST_CALC_W0, ST_DONE);
+    type state_t is (ST_IDLE, ST_RESCALE, ST_WR_FFT, ST_COMMIT_FFT, ST_RD_FFT, ST_WAIT_FFT, ST_CAPTURE_FFT, ST_CALC_X, ST_WR_Q01, ST_COMMIT_Q01, ST_RD_Q01, ST_RD_Q01_WAIT, ST_RD_Q01_CAPTURE, ST_WAIT_IFFT, ST_RD_FIFO, ST_CALC_W0, ST_DONE);
     signal state     : state_t;
     signal next_state : state_t;
 
     -- Rescale calculation signals
 
     constant c_bits_samples : natural := clog2(g_num_samples);
-    constant c_alpha_shift  : integer range 0 to 32 := c_q00 + 1 - c_bits_samples;
+    constant c_alpha_shift  : integer range 0 to 32 := c_q00_shift + 1 - c_bits_samples;
 
     signal q00 : std_logic_vector(g_data_width - 1 downto 0);
     signal q01 : std_logic_vector(g_data_width - 1 downto 0);
@@ -46,7 +46,7 @@ architecture rtl of rebuild_s0 is
     signal rescale_valid : std_logic;
     signal rescale_cnt : integer range 0 to 1024;
 
-    signal error_flag;
+    signal error_flag : std_logic;
     signal alpha : signed(g_data_width -1 downto 0);
 
     -- FFT calculation signals
@@ -73,13 +73,13 @@ architecture rtl of rebuild_s0 is
     signal q01_enb : std_logic;
     signal w1_enb  : std_logic;
 
-    signal q00_wea : std_logic;
-    signal q01_wea : std_logic;
-    signal w1_wea  : std_logic;
+    signal q00_wea : std_logic_vector (0 downto 0);
+    signal q01_wea : std_logic_vector (0 downto 0);
+    signal w1_wea  : std_logic_vector (0 downto 0);
 
-    signal ram_q00_web : std_logic;
-    signal ram_q01_web : std_logic;
-    signal ram_w1_web  : std_logic;
+    signal q00_web : std_logic_vector (0 downto 0);
+    signal q01_web : std_logic_vector (0 downto 0);
+    signal w1_web  : std_logic_vector (0 downto 0);
 
     signal q00_addra : std_logic_vector(g_addr_width - 1 downto 0);
     signal q01_addra : std_logic_vector(g_addr_width - 1 downto 0);
@@ -105,6 +105,9 @@ architecture rtl of rebuild_s0 is
     signal q00_doutb : std_logic_vector(g_data_width - 1 downto 0);
     signal q01_doutb : std_logic_vector(g_data_width - 1 downto 0);
     signal w1_doutb  : std_logic_vector(g_data_width - 1 downto 0);
+
+    signal q01_a    : std_logic_vector(g_data_width - 1 downto 0);
+    signal q01_b    : std_logic_vector(g_data_width - 1 downto 0);
 
     -- Rebuild calculation signals
 
@@ -142,12 +145,13 @@ architecture rtl of rebuild_s0 is
     -- W0 calculation signals
     signal ready_v : std_logic;
     signal ready_z : std_logic;
-    signal v : signed(g_data_width downto 0);
     signal z : signed(g_data_width + 1 downto 0);
     signal w0 : std_logic_vector(g_data_width - 1 downto 0);
     signal w0_valid : std_logic;
     signal w0_done : std_logic;
-    signal u : integer range 0 to 1023;
+
+    -- Loop index
+    signal u : unsigned(g_addr_width - 1 downto 0);
 
     component fft
         generic (
@@ -218,8 +222,6 @@ architecture rtl of rebuild_s0 is
 
 begin
 
-    data_out_valid <= data_out_valid_reg;
-
     -- Registro del estado. El reset es sincrono y activo a nivel bajo.
     p_state : process(clk)
     begin
@@ -244,7 +246,13 @@ begin
         q00_wea <= (others => '0');
         q01_wea <= (others => '0');
         w1_wea  <= (others => '0');
-        done <= '0';
+
+        q00_enb <= '0';
+        q01_enb <= '0';
+        w1_enb  <= '0';
+        q00_web <= (others => '0');
+        q01_web <= (others => '0');
+        w1_web  <= (others => '0');
         case state is
             when ST_IDLE =>
                 if start = '1' then
@@ -252,23 +260,34 @@ begin
                 end if;
 
             when ST_RESCALE =>
-                if data_in_valid = '1' then
+                if data_in_valid = '1' and rescale_cnt = g_num_samples - 1 then
                     next_state <= ST_WR_FFT;
                 end if;
 
             when ST_WR_FFT =>
                 -- FFTs calculated stored in BRAMS.
-                if rescale_valid = '1' then
+                if fft_q00_valid = '1' then
                     q00_ena <= '1';
-                    q01_ena <= '1';
-                    w1_ena  <= '1';
                     q00_wea <= (others => '1');
-                    q01_wea <= (others => '1');
-                    w1_wea  <= (others => '1');
+                end if;
 
-                    if unsigned(ram_addra) = g_num_samples - 1 then
-                        next_state <= ST_COMMIT_FFT;
-                    end if;
+                if fft_q01_valid = '1' then
+                    q01_ena <= '1';
+                    q01_wea <= (others => '1');
+                end if;
+
+                if fft_w1_valid = '1' then
+                    w1_ena  <= '1';
+                    w1_wea  <= (others => '1');
+                end if;
+
+                if fft_q00_valid = '1' and
+                fft_q01_valid = '1' and
+                fft_w1_valid  = '1' and
+                unsigned(q00_addra) = g_num_samples - 1 and
+                unsigned(q01_addra) = g_num_samples - 1 and
+                unsigned(w1_addra)  = g_num_samples - 1 then
+                    next_state <= ST_COMMIT_FFT;
                 end if;
 
             when ST_COMMIT_FFT =>
@@ -288,11 +307,11 @@ begin
                 w1_ena <= '1';
                 w1_enb <= '1';
 
-                next_state <= CALC;
+                next_state <= ST_CALC_X;
 
             when ST_CALC_X =>
                 -- Forma T_re y T_im sumando/restando los productos.
-                next_state <= ST_WR_T1;
+                next_state <= ST_WR_Q01;
 
             when ST_WR_Q01 =>
                 next_state <= ST_COMMIT_Q01;
@@ -303,10 +322,10 @@ begin
                 q01_enb <= '1';
                 q01_wea <= (others => '1');
                 q01_web <= (others => '1');
-                if u = unsigned(g_num_samples/2 - 1) then
-                    next_state <= ST_RD_FFT;
-                else
+                if u = g_num_samples/2 - 1 then
                     next_state <= ST_RD_Q01;
+                else
+                    next_state <= ST_RD_FFT;
                 end if;
 
             when ST_RD_Q01 =>
@@ -318,20 +337,25 @@ begin
                 next_state <= ST_RD_Q01_CAPTURE;
 
             when ST_RD_Q01_CAPTURE =>
-                -- Una vez cebada la BRAM se obtiene una palabra por ciclo.
                 q01_ena <= '1';
-                if ifft_out_count = g_num_samples - 1 then
-                    next_state <= ST_DONE;
+
+                if addr_count = g_num_samples - 1 then
+                    next_state <= ST_WAIT_IFFT;
                 end if;
 
-            when ST_WR_FIFO =>
+            when ST_WAIT_IFFT =>
+                if ifft_done = '1' then
+                    next_state <= ST_RD_FIFO;
+                end if;
+
+            when ST_RD_FIFO =>
+                    next_state <= ST_CALC_W0;
                 
             when ST_CALC_W0 =>
                 next_state <= ST_DONE;
 
             when ST_DONE =>
                 -- Pulso de un ciclo; coincide con la ultima salida valida.
-                done <= '1';
                 next_state <= ST_IDLE;
         end case;
     end process p_next_state;
@@ -342,13 +366,10 @@ begin
     p_counter : process(clk) begin
         if rising_edge(clk) then
             if rst_n = '0' then
-                delta_real <= (others => '0');
-                delta_imag <= (others => '0');
                 prod_uu <= (others => '0');
                 prod_un <= (others => '0');
                 prod_nu <= (others => '0');
                 prod_nn <= (others => '0');
-                read_valid <= '0';
                 w1 <= (others => '0');
                 q00 <= (others => '0');
                 q01 <= (others => '0');
@@ -357,56 +378,107 @@ begin
                 error_flag <= '0';
                 alpha <= (others => '0');
                 fft_addr <= (others => '0');
+                u <= (others => '0');
+                q01_a <= (others => '0');
+                q01_b <= (others => '0');
+                x_re <= (others => '0');
+                x_im <= (others => '0');
+                ready_v      <= '0';
+                ready_z      <= '0';
+                w0_valid     <= '0';
+                w0_done      <= '0';
+                fifo_rd_en   <= '0';
+                ifft_valid_in <= '0';
+                addr_count   <= 0;
+                v            <= (others => '0');
+                z            <= (others => '0');
+                w0           <= (others => '0');
 
             else
-                data_out_valid_reg <= '0';
-                read_valid <= '0';
-                rescale_valid <= data_in_valid;
+                rescale_valid <= '0';
+                fifo_rd_en <= '0';
+                ifft_valid_in <= '0';
+                ready_v <= '0';
+                ready_z <= '0';
+                w0_valid <= '0';
+                w0_done <= '0';
                 case state is
                 when ST_IDLE =>
-                    ram_addra <= (others => '0');
-                    ram_addrb <= (others => '0');
-                    ram_addra_q00 <= (others => '0');
-                    ram_addra_q01 <= (others => '0');
-                    ram_addra_w1  <= (others => '0');
-                    rom_enable  <= '0';
-
-                    t  <= std_logic_vector(shift_right(to_unsigned(g_num_samples, t'length), 1));
-                    m  <= std_logic_vector(to_unsigned(2, m'length));
-                    u  <= (others => '0');
-                    v  <= (others => '0');
-                    v0 <= (others => '0');
-                    fft_out_count <= 0;
 
                     w1 <= (others => '0');
                     q00 <= (others => '0');
                     q01 <= (others => '0');
                     alpha <= (others => '0');
-
+                    error_flag <= '0';
                     fft_addr <= (others => '0');
+                    rescale_cnt <= 0;
+                    q00_addra <= (others => '0');
+                    q01_addra <= (others => '0');
+                    w1_addra  <= (others => '0');
+                    u <= (others => '0');
+                    prod_uu <= (others => '0');
+                    prod_un <= (others => '0');
+                    prod_nu <= (others => '0');
+                    prod_nn <= (others => '0');
+                    q01_a <= (others => '0');
+                    q01_b <= (others => '0');
 
                 when ST_RESCALE =>
-                    w1 <= std_logic_vector(shift_left(signed(data_w1), c_w1));
-                    q00 <= std_logic_vector(shift_left(signed(data_q00), c_q00));
-                    q01 <= std_logic_vector(shift_left(signed(data_q01), c_q01));
-                    rescale_cnt <= rescale_cnt + 1;
+                    if data_in_valid = '1' then
+                        rescale_valid <= '1';
 
-                    if rescale_cnt = 0 then
-                        if to_integer(signed(data_q00)) < 0 then
-                            error_flag <= '1';
+                        w1 <= std_logic_vector(
+                            shift_left(signed(data_w1), c_w1_shift));
+
+                        q01 <= std_logic_vector(
+                            shift_left(signed(data_q01), c_q01_shift));
+
+                        if rescale_cnt = 0 then
+                            -- El algoritmo comprueba q00[0] antes de sustituirlo por cero.
+                            if signed(data_q00) < 0 then
+                                error_flag <= '1';
+                            end if;
+
+                            alpha <= shift_left(
+                                resize(signed(data_q00), alpha'length),
+                                c_alpha_shift);
+
+                            -- z00[0] = 0 antes de calcular FFT(q00*z00).
+                            q00 <= (others => '0');
                         else
-                            error_flag <= '0';
+                            q00 <= std_logic_vector(
+                                shift_left(signed(data_q00), c_q00_shift));
                         end if;
-                        q00 <= (others => '0');
-                        alpha <= shift_left(signed(data_q00), c_alpha_shift);
+
+                        if rescale_cnt = g_num_samples - 1 then
+                            rescale_cnt <= 0;
+                        else
+                            rescale_cnt <= rescale_cnt + 1;
+                        end if;
                     end if;
 
                 when ST_WR_FFT =>
-                    if rescale_valid = '1' then
-                        if unsigned(fft_addr) = g_num_samples - 1 then
-                            fft_addr <= (others => '0');
+                    if fft_q00_valid = '1' then
+                        if unsigned(q00_addra) = g_num_samples - 1 then
+                            q00_addra <= (others => '0');
                         else
-                            fft_addr <= std_logic_vector(unsigned(fft_addr) + 1);
+                            q00_addra <= std_logic_vector(unsigned(q00_addra) + 1);
+                        end if;
+                    end if;
+
+                    if fft_q01_valid = '1' then
+                        if unsigned(q01_addra) = g_num_samples - 1 then
+                            q01_addra <= (others => '0');
+                        else
+                            q01_addra <= std_logic_vector(unsigned(q01_addra) + 1);
+                        end if;
+                    end if;
+
+                    if fft_w1_valid = '1' then
+                        if unsigned(w1_addra) = g_num_samples - 1 then
+                            w1_addra <= (others => '0');
+                        else
+                            w1_addra <= std_logic_vector(unsigned(w1_addra) + 1);
                         end if;
                     end if;
 
@@ -414,13 +486,13 @@ begin
                     null;
 
                 when ST_RD_FFT =>
-                    q00_addra <= std_logic_vector(resize(unsigned(u), q00_addra'length));
+                    q00_addra <= std_logic_vector(resize(u, q00_addra'length));
                 
-                    q01_addra <= std_logic_vector(resize(unsigned(u), q01_addra'length));
-                    q01_addrb <= std_logic_vector(resize(unsigned(u) + to_unsigned(g_num_samples / 2, v'length), q01_addrb'length));
+                    q01_addra <= std_logic_vector(resize(u, q01_addra'length));
+                    q01_addrb <= std_logic_vector(resize(u + to_unsigned(g_num_samples / 2, u'length), q01_addrb'length));
 
-                    w1_addra <= std_logic_vector(resize(unsigned(u), w1_addra'length));
-                    w1_addrb <= std_logic_vector(resize(unsigned(u) + to_unsigned(g_num_samples / 2, v'length), w1_addrb'length));
+                    w1_addra <= std_logic_vector(resize(u, w1_addra'length));
+                    w1_addrb <= std_logic_vector(resize(u + to_unsigned(g_num_samples / 2, u'length), w1_addrb'length));
 
                 when ST_WAIT_FFT =>
                     null;
@@ -432,39 +504,40 @@ begin
                     prod_nu <= signed(q01_doutb) * signed(w1_douta);
                     prod_nn <= signed(q01_doutb) * signed(w1_doutb);
 
-                    v <= alpha + signed(q00_douta);
+                    v <= resize(alpha, v'length) + resize(signed(q00_douta), v'length);
 
                 when ST_CALC_X =>
                     -- Multiplicacion compleja: x2*(eps_re+j*eps_im).
-                    x_re <= prod_uu - prod_nn;
-                    x_im <= prod_un + prod_nu;
+                    x_re <= resize(prod_uu, x_re'length) - resize(prod_nn, x_re'length);
+                    x_im <= resize(prod_un, x_im'length) + resize(prod_nu, x_im'length);
 
                 when ST_WR_Q01 =>
                     -- floor((2^31*x1 + T)/2^32). shift_right sobre signed
                     -- implementa la division aritmetica indicada en la norma.
 
-                    q01_addra <= std_logic_vector(resize(unsigned(u), q01_addra'length));
-                    q01_addrb <= std_logic_vector(resize(unsigned(u) + to_unsigned(g_num_samples / 2, u'length), q01_addrb'length));
-                    q01_dina  <= std_logic_vector(resize((x_re / resize(v, x_re'length)), q01_dina'length));
-                    q01_dinb  <= std_logic_vector(resize((x_im / resize(v, x_im'length)), q01_dinb'length));
+                    q01_addra   <= std_logic_vector(resize(u, q01_addra'length));
+                    q01_addrb   <= std_logic_vector(resize(u + to_unsigned(g_num_samples / 2, u'length), q01_addrb'length));
 
-                    if to_integer(v) <= 0 then
+                    if v <= 0 then
                         error_flag <= '1';
-                    elsif v >= to_signed(2**30, v'length) then
+                    elsif v >= shift_left(to_signed(1, v'length), 30) then
                         error_flag <= '1';
-                    elsif x_re >= shift_left(resize(v, x_re'length), 32) then
+                    elsif abs(x_re) >= shift_left(resize(v, x_re'length), 32) then
                         error_flag <= '1';
-                    elsif x_im >= shift_left(resize(v, x_im'length), 32) then
+                    elsif abs(x_im) >= shift_left(resize(v, x_im'length), 32) then
                         error_flag <= '1';
                     else
-                        error_flag <= '0';
+                        q01_a <= std_logic_vector(
+                            resize(x_re / resize(v, x_re'length), q01_a'length));
+                        q01_b <= std_logic_vector(
+                            resize(x_im / resize(v, x_im'length), q01_b'length));
                     end if;
 
                 when ST_COMMIT_Q01 =>
-                    if to_integer(u) == g_num_samples/2 - 1 then
+                    if to_integer(u) = g_num_samples/2 - 1 then
                         u <= (others => '0');
                     else
-                        u <= u + unsigned(1, u'length);
+                        u <= u + 1;
                     end if;
                 
                 when ST_RD_Q01 =>
@@ -473,7 +546,7 @@ begin
 
                 when ST_RD_Q01_WAIT =>
                     -- La direccion 0 esta en vuelo; se adelanta la direccion 1.
-                    ram_addra <= std_logic_vector(unsigned(ram_addra) + to_unsigned(1, ram_addra'length));
+                    q01_addra <= std_logic_vector(unsigned(q01_addra) + to_unsigned(1, q01_addra'length));
 
                 when ST_RD_Q01_CAPTURE =>
                     -- count es la palabra capturada, count+1 ya esta en vuelo
@@ -485,15 +558,21 @@ begin
                         addr_count <= addr_count + 1;
 
                         if addr_count < g_num_samples - 2 then
-                            ram_addra <= std_logic_vector(to_unsigned(
-                                addr_count + 2, ram_addra'length));
+                            q01_addra <= std_logic_vector(to_unsigned(
+                                addr_count + 2, q01_addra'length));
                         end if;
                     end if;
+
+                when ST_WAIT_IFFT =>
+                    null;
+                
+                when ST_RD_FIFO =>
+                    fifo_rd_en <= not fifo_empty;
+
                 when ST_CALC_W0 =>
-                    fifo_wr_en <= '1';
-                    if fifo_wr_en = '1' then
+                    if fifo_rd_en = '1' then
                         ready_v <= '1';
-                        if h0(u) = '1' then
+                        if data_h0(to_integer(u)) = '1' then
                             v <= signed(fifo_dout) + shift_left(to_signed(1, v'length), c_s0);
                         else
                             v <= resize(signed(fifo_dout), v'length);
@@ -512,7 +591,7 @@ begin
                         if z < -2**c_high_s0 or z >= 2**c_high_s0 then
                             error_flag <= '1';
                         end if;
-                        if h0(u) = '1' then
+                        if data_h0(to_integer(u)) = '1' then
                             w0 <= std_logic_vector(to_signed(1, w0'length + 1) - shift_left((z), 1));
                         else
                             w0 <= std_logic_vector(-shift_left((z), 1));
@@ -522,8 +601,6 @@ begin
                     end if;
 
                 when ST_DONE =>
-                    ram_addra <= (others => '0');
-                    ram_addrb <= (others => '0');
                     w0_done <= '1';
 
                 when others =>
@@ -533,30 +610,20 @@ begin
         end if;
     end process p_counter;
 
-    q00_addra <= fft_addr when state = ST_WR_FFT else (others => '0');
-    q01_addra <= fft_addr when state = ST_WR_FFT else (others => '0');
-    w1_addra  <= fft_addr when state = ST_WR_FFT else (others => '0');
+    q00_dina <= fft_q00 when state = ST_WR_FFT else (others => '0');
+    q01_dina <= fft_q01 when state = ST_WR_FFT else
+                q01_a   when state = ST_COMMIT_Q01 
+                else (others => '0');
+    q01_dinb <= q01_b   when state = ST_COMMIT_Q01 else (others => '0');
+    w1_dina  <= fft_w1  when state = ST_WR_FFT else (others => '0');
+
+    fifo_wr_en <= ifft_valid_out when fifo_full = '0'
+                  else '0';
 
     error <= error_flag;
     data_out <= w0;
     data_out_valid <= w0_valid;
     done <= w0_done;
-
-    ram_fft : blk_mem_gen_1
-		port map (
-			clka  => clk,
-			ena   => ram_fft_en,
-			wea   => ram_fft_we,
-			addra => ram_addra,
-			dina  => ram_dina,
-			douta => ram_douta,
-			clkb  => clk,
-			enb   => ram_fft_enb,
-			web   => ram_fft_web,
-			addrb => ram_addrb,
-            dinb  => data_b,
-            doutb => ram_doutb
-		);
 
     fft_q00 : fft 
         generic map (
@@ -626,52 +693,52 @@ begin
             data_out_valid  =>  ifft_valid_out
         );
 
-    input_q00_ram : blk_mem_gen_1
+    q00_ram : blk_mem_gen_1
         port map (
-            clka => clk, 
-            ena => q00_ena, 
-            wea => q00_wea,
-            addra => q00_addra, 
-            dina => q00_dina, 
-            douta => q00_douta,
-            clkb => clk, 
-            enb => q00_enb, 
-            web => q00_web,
-            addrb => q00_addrb, 
-            dinb => q00_dinb, 
-            doutb => q00_doutb
+            clka    => clk, 
+            ena     => q00_ena, 
+            wea     => q00_wea,
+            addra   => q00_addra, 
+            dina    => q00_dina, 
+            douta   => q00_douta,
+            clkb    => clk, 
+            enb     => q00_enb, 
+            web     => q00_web,
+            addrb   => q00_addrb, 
+            dinb    => q00_dinb, 
+            doutb   => q00_doutb
         );
 
-    input_q01_ram : blk_mem_gen_1
+    q01_ram : blk_mem_gen_1
         port map (
-            clka => clk, 
-            ena => q01_ena, 
-            wea => q01_wea,
-            addra => q01_addra, 
-            dina => q01_dina, 
-            douta => q01_douta,
-            clkb => clk, 
-            enb => q01_enb, 
-            web => q01_web,
-            addrb => q01_addrb, 
-            dinb => q01_dinb, 
-            doutb => q01_doutb
+            clka    => clk, 
+            ena     => q01_ena, 
+            wea     => q01_wea,
+            addra   => q01_addra, 
+            dina    => q01_dina, 
+            douta   => q01_douta,
+            clkb    => clk, 
+            enb     => q01_enb, 
+            web     => q01_web,
+            addrb   => q01_addrb, 
+            dinb    => q01_dinb, 
+            doutb   => q01_doutb
         );
 
-    input_w1_ram : blk_mem_gen_1
+    w1_ram : blk_mem_gen_1
         port map (
-            clka => clk, 
-            ena => w1_ena, 
-            wea => w1_wea,
-            addra => w1_addra, 
-            dina => w1_dina, 
-            douta => w1_douta,
-            clkb => clk, 
-            enb => w1_enb, 
-            web => w1_web,
-            addrb => w1_addrb, 
-            dinb => w1_dinb, 
-            doutb => w1_doutb
+            clka    => clk, 
+            ena     => w1_ena, 
+            wea     => w1_wea,
+            addra   => w1_addra, 
+            dina    => w1_dina, 
+            douta   => w1_douta,
+            clkb    => clk, 
+            enb     => w1_enb, 
+            web     => w1_web,
+            addrb   => w1_addrb, 
+            dinb    => w1_dinb, 
+            doutb   => w1_doutb
         );
 
     fifo_inst : fifo_generator_0
