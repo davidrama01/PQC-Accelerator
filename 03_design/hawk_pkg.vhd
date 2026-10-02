@@ -8,7 +8,10 @@ package hawk_pkg is
     constant c_num_samples  : integer range 0 to 1024 := 512;
     constant c_data_width   : integer range 0 to 40 := 32;
     constant c_sigma_verify : integer range 0 to 12000 := 10469; -- LSB = 13 bits
-    constant c_threshold_verify : signed(13 downto 0) := resize(shift_right(to_signed(8 * c_sigma_verify * c_sigma_verify * c_num_samples + 2**25, 40), 26), 14);
+    -- Widen before multiplying by n: the complete numerator exceeds integer.
+    constant c_threshold_verify : signed(13 downto 0) := resize(shift_right(
+        to_signed(8 * c_sigma_verify * c_sigma_verify, 40) *
+        to_signed(c_num_samples, 40) + to_signed(2**25, 80), 26), 14);
     constant c_size_fifo : integer range 0 to 1024 := c_num_samples / c_data_width;
 
     constant c_low_q00  : integer range 0 to 11 := 5;

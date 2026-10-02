@@ -381,7 +381,13 @@ begin
                 next_state <= ST_WAIT_FFT_2;
 
             when ST_WAIT_FFT_2 =>
-                -- Segundo ciclo de la lectura sincrona.
+                -- Sin REGCE independiente, EN tambien habilita el registro
+                -- de salida de la BRAM. Mantenerlo durante ambos ciclos.
+                q00_ena <= '1';
+                q01_ena <= '1';
+                q01_enb <= '1';
+                w1_ena <= '1';
+                w1_enb <= '1';
                 next_state <= ST_CAPTURE_FFT;
 
             when ST_CAPTURE_FFT =>
@@ -429,7 +435,8 @@ begin
                 next_state <= ST_RD_Q01_WAIT_2;
 
             when ST_RD_Q01_WAIT_2 =>
-                -- Segundo ciclo de la lectura sincrona.
+                -- Habilita tambien el registro de salida de la BRAM.
+                q01_ena <= '1';
                 next_state <= ST_RD_Q01_CAPTURE;
 
             when ST_RD_Q01_CAPTURE =>
@@ -781,7 +788,7 @@ begin
     -- Transformadas
     ---------------------------------------------------------------------------
 
-    fft_q00 : fft 
+    fft_q00_inst : fft 
         generic map (
             g_num_samples   =>  g_num_samples,
             g_data_width    =>  g_data_width,
@@ -798,7 +805,7 @@ begin
             data_out_valid  =>  fft_q00_valid
         );
 
-    fft_q01 : fft 
+    fft_q01_inst : fft 
         generic map (
             g_num_samples   =>  g_num_samples,
             g_data_width    =>  g_data_width,
@@ -815,7 +822,7 @@ begin
             data_out_valid  =>  fft_q01_valid
         );
 
-    fft_w1 : fft 
+    fft_w1_inst : fft 
         generic map (
             g_num_samples   =>  g_num_samples,
             g_data_width    =>  g_data_width,
@@ -832,7 +839,7 @@ begin
             data_out_valid  =>  fft_w1_valid
         );
 
-    ifft_q01 : ifft 
+    ifft_q01_inst : ifft 
         generic map (
             g_num_samples   =>  g_num_samples,
             g_data_width    =>  g_data_width,
