@@ -100,77 +100,101 @@ architecture rtl of polyqnorm is
     -- Resultados de las tres FFT
     ---------------------------------------------------------------------------
 
-    signal ntt_q00_valid : std_logic;
-    signal ntt_q01_valid : std_logic;
-    signal ntt_w0_valid  : std_logic;
-    signal ntt_w1_valid  : std_logic;
+    signal ntt_q00_valid  : std_logic;
+    signal ntt_q01_valid  : std_logic;
+    signal ntt_w0_valid   : std_logic;
+    signal ntt_w1_valid   : std_logic;
+    signal intt_q00_valid : std_logic;
 
-    signal ntt_q00_done : std_logic;
-    signal ntt_q01_done : std_logic;
-    signal ntt_w0_done  : std_logic;
-    signal ntt_w1_done  : std_logic;
+    signal ntt_q00_done  : std_logic;
+    signal ntt_q01_done  : std_logic;
+    signal ntt_w0_done   : std_logic;
+    signal ntt_w1_done   : std_logic;
+    signal intt_q00_done : std_logic;
 
-    signal ntt_q00 : std_logic_vector(g_data_width - 1 downto 0);
-    signal ntt_q01 : std_logic_vector(g_data_width - 1 downto 0);
-    signal ntt_w0  : std_logic_vector(g_data_width - 1 downto 0);
-    signal ntt_w1  : std_logic_vector(g_data_width - 1 downto 0);
+    signal ntt_q00  : std_logic_vector(g_data_width - 1 downto 0);
+    signal ntt_q01  : std_logic_vector(g_data_width - 1 downto 0);
+    signal ntt_w0   : std_logic_vector(g_data_width - 1 downto 0);
+    signal ntt_w1   : std_logic_vector(g_data_width - 1 downto 0);
+    signal intt_q00 : std_logic_vector(g_data_width - 1 downto 0);
 
     ---------------------------------------------------------------------------
     -- Memorias de resultados FFT
     ---------------------------------------------------------------------------
 
-    signal q00_ena : std_logic;
-    signal q01_ena : std_logic;
-    signal w0_ena  : std_logic;
-    signal w1_ena  : std_logic;
+    signal q00_ena  : std_logic;
+    signal q01_ena  : std_logic;
+    signal w0_ena   : std_logic;
+    signal w1_ena   : std_logic;
+    signal iq00_ena : std_logic;
 
-    signal q00_enb : std_logic;
-    signal q01_enb : std_logic;
-    signal w0_enb  : std_logic;
-    signal w1_enb  : std_logic;
+    signal q00_enb  : std_logic;
+    signal q01_enb  : std_logic;
+    signal w0_enb   : std_logic;
+    signal w1_enb   : std_logic;
+    signal iq00_enb : std_logic;
 
-    signal q00_wea : std_logic_vector(0 downto 0);
-    signal q01_wea : std_logic_vector(0 downto 0);
-    signal w0_wea  : std_logic_vector(0 downto 0);
-    signal w1_wea  : std_logic_vector(0 downto 0);
+    signal q00_wea  : std_logic_vector(0 downto 0);
+    signal q01_wea  : std_logic_vector(0 downto 0);
+    signal w0_wea   : std_logic_vector(0 downto 0);
+    signal w1_wea   : std_logic_vector(0 downto 0);
+    signal iq00_wea : std_logic_vector(0 downto 0);
 
-    signal q00_web : std_logic_vector(0 downto 0);
-    signal q01_web : std_logic_vector(0 downto 0);
-    signal w0_web  : std_logic_vector(0 downto 0);
-    signal w1_web  : std_logic_vector(0 downto 0);
+    signal q00_web  : std_logic_vector(0 downto 0);
+    signal q01_web  : std_logic_vector(0 downto 0);
+    signal w0_web   : std_logic_vector(0 downto 0);
+    signal w1_web   : std_logic_vector(0 downto 0);
+    signal iq00_web : std_logic_vector(0 downto 0);
 
-    signal q00_addra : std_logic_vector(g_addr_width - 1 downto 0);
-    signal q01_addra : std_logic_vector(g_addr_width - 1 downto 0);
-    signal w0_addra  : std_logic_vector(g_addr_width - 1 downto 0);
-    signal w1_addra  : std_logic_vector(g_addr_width - 1 downto 0);
+    signal q00_addra  : std_logic_vector(g_addr_width - 1 downto 0);
+    signal q01_addra  : std_logic_vector(g_addr_width - 1 downto 0);
+    signal w0_addra   : std_logic_vector(g_addr_width - 1 downto 0);
+    signal w1_addra   : std_logic_vector(g_addr_width - 1 downto 0);
+    signal iq00_addra : std_logic_vector(g_addr_width - 1 downto 0);
 
-    signal q00_addrb : std_logic_vector(g_addr_width - 1 downto 0);
-    signal q01_addrb : std_logic_vector(g_addr_width - 1 downto 0);
-    signal w0_addrb  : std_logic_vector(g_addr_width - 1 downto 0);
-    signal w1_addrb  : std_logic_vector(g_addr_width - 1 downto 0);
+    signal q00_addrb  : std_logic_vector(g_addr_width - 1 downto 0);
+    signal q01_addrb  : std_logic_vector(g_addr_width - 1 downto 0);
+    signal w0_addrb   : std_logic_vector(g_addr_width - 1 downto 0);
+    signal w1_addrb   : std_logic_vector(g_addr_width - 1 downto 0);
+    signal iq00_addrb : std_logic_vector(g_addr_width - 1 downto 0);
 
-    signal q00_dina : std_logic_vector(g_data_width - 1 downto 0);
-    signal q01_dina : std_logic_vector(g_data_width - 1 downto 0);
-    signal w0_dina  : std_logic_vector(g_data_width - 1 downto 0);
-    signal w1_dina  : std_logic_vector(g_data_width - 1 downto 0);
+    signal q00_dina  : std_logic_vector(g_data_width - 1 downto 0);
+    signal q01_dina  : std_logic_vector(g_data_width - 1 downto 0);
+    signal w0_dina   : std_logic_vector(g_data_width - 1 downto 0);
+    signal w1_dina   : std_logic_vector(g_data_width - 1 downto 0);
+    signal iq00_dina : std_logic_vector(g_data_width - 1 downto 0);
 
-    signal q00_dinb : std_logic_vector(g_data_width - 1 downto 0);
-    signal q01_dinb : std_logic_vector(g_data_width - 1 downto 0);
-    signal w0_dinb  : std_logic_vector(g_data_width - 1 downto 0);
-    signal w1_dinb  : std_logic_vector(g_data_width - 1 downto 0);
+    signal q00_dinb  : std_logic_vector(g_data_width - 1 downto 0);
+    signal q01_dinb  : std_logic_vector(g_data_width - 1 downto 0);
+    signal w0_dinb   : std_logic_vector(g_data_width - 1 downto 0);
+    signal w1_dinb   : std_logic_vector(g_data_width - 1 downto 0);
+    signal iq00_dinb : std_logic_vector(g_data_width - 1 downto 0);
 
-    signal q00_douta : std_logic_vector(g_data_width - 1 downto 0);
-    signal q01_douta : std_logic_vector(g_data_width - 1 downto 0);
-    signal w0_douta  : std_logic_vector(g_data_width - 1 downto 0);
-    signal w1_douta  : std_logic_vector(g_data_width - 1 downto 0);
+    signal q00_douta  : std_logic_vector(g_data_width - 1 downto 0);
+    signal q01_douta  : std_logic_vector(g_data_width - 1 downto 0);
+    signal w0_douta   : std_logic_vector(g_data_width - 1 downto 0);
+    signal w1_douta   : std_logic_vector(g_data_width - 1 downto 0);
+    signal iq00_douta : std_logic_vector(g_data_width - 1 downto 0);
 
-    signal q00_doutb : std_logic_vector(g_data_width - 1 downto 0);
-    signal q01_doutb : std_logic_vector(g_data_width - 1 downto 0);
-    signal w0_doutb  : std_logic_vector(g_data_width - 1 downto 0);
-    signal w1_doutb  : std_logic_vector(g_data_width - 1 downto 0);
+    signal q00_doutb  : std_logic_vector(g_data_width - 1 downto 0);
+    signal q01_doutb  : std_logic_vector(g_data_width - 1 downto 0);
+    signal w0_doutb   : std_logic_vector(g_data_width - 1 downto 0);
+    signal w1_doutb   : std_logic_vector(g_data_width - 1 downto 0);
+    signal iq00_doutb : std_logic_vector(g_data_width - 1 downto 0);
 
     signal q01_a : std_logic_vector(g_data_width - 1 downto 0);
     signal q01_b : std_logic_vector(g_data_width - 1 downto 0);
+
+    ---------------------------------------------------------------------------
+    -- Cálculo de d y e
+    ---------------------------------------------------------------------------
+
+    signal d : signed(g_data_width downto 0);
+    signal e : signed(g_data_width downto 0);
+    signal f : signed(g_data_width downto 0);
+    signal q01_d : std_logic_vector(g_data_width - 1 downto 0);
+    signal w0_d : std_logic_vector(g_data_width - 1 downto 0);
+    signal w0_d1 : std_logic_vector(g_data_width - 1 downto 0);
 
     ---------------------------------------------------------------------------
     -- Reconstruccion de qhat01
@@ -337,19 +361,27 @@ begin
     begin
         next_state <= state;
 
-        q00_ena <= '0';
-        q01_ena <= '0';
-        w1_ena  <= '0';
-        q00_wea <= (others => '0');
-        q01_wea <= (others => '0');
-        w1_wea  <= (others => '0');
+        q00_ena  <= '0';
+        q01_ena  <= '0';
+        w0_ena   <= '0';
+        w1_ena   <= '0';
+        iq00_ena <= '0';
+        q00_wea  <= (others => '0');
+        q01_wea  <= (others => '0');
+        w0_wea   <= (others => '0');
+        w1_wea   <= (others => '0');
+        iq00_wea <= (others => '0');
 
-        q00_enb <= '0';
-        q01_enb <= '0';
-        w1_enb  <= '0';
-        q00_web <= (others => '0');
-        q01_web <= (others => '0');
-        w1_web  <= (others => '0');
+        q00_enb  <= '0';
+        q01_enb  <= '0';
+        w0_enb   <= '0';
+        w1_enb   <= '0';
+        iq00_enb <= '0';
+        q00_web  <= (others => '0');
+        q01_web  <= (others => '0');
+        w0_web   <= (others => '0');
+        w1_web   <= (others => '0');
+        iq00_web <= (others => '0');
         case state is
             when ST_IDLE =>
                 if start = '1' then
@@ -379,15 +411,12 @@ begin
                     w1_wea  <= (others => '1');
                 end if;
 
-                if ntt_q00_valid = '1' and
-                ntt_q01_valid = '1' and
-                ntt_w0_valid  = '1' and
-                ntt_w1_valid  = '1' and
-                unsigned(q00_addra) = g_num_samples - 1 and
-                unsigned(q01_addra) = g_num_samples - 1 and
-                unsigned(w0_addra)  = g_num_samples - 1 and
-                unsigned(w1_addra)  = g_num_samples - 1 then
-                    next_state <= ST_COMMIT_NTT;
+                if intt_q00_valid = '1' then
+                    iq00_ena <= '1';
+                    iq00_wea <= (others => '1');
+                    if unsigned(iq00_addra) = g_num_samples - 1 then
+                        next_state <= ST_COMMIT_NTT;
+                    end if;
                 end if;
 
             when ST_COMMIT_NTT =>
@@ -395,36 +424,32 @@ begin
                 -- lectura de las memorias NTT.
                 next_state <= ST_RD_NTT;
 
-            when ST_RD_FFT =>
+            when ST_RD_NTT =>
                 -- Las direcciones u y u+n/2 se registran en el datapath.
-                next_state <= ST_WAIT_FFT;
+                next_state <= ST_WAIT_NTT;
 
-            when ST_WAIT_FFT =>
+            when ST_WAIT_NTT =>
                 -- Con las direcciones ya estables se solicita la lectura.
-                q00_ena <= '1';
-                q01_ena <= '1';
-                q01_enb <= '1';
+                iq00_ena <= '1';
+                q01_ena  <= '1';
+                w0_ena   <= '1';
+                w1_ena   <= '1';
+                next_state <= ST_WAIT_NTT_2;
 
-                w1_ena <= '1';
-                w1_enb <= '1';
-
-                next_state <= ST_WAIT_FFT_2;
-
-            when ST_WAIT_FFT_2 =>
+            when ST_WAIT_NTT_2 =>
                 -- Sin REGCE independiente, EN tambien habilita el registro
                 -- de salida de la BRAM. Mantenerlo durante ambos ciclos.
-                q00_ena <= '1';
-                q01_ena <= '1';
-                q01_enb <= '1';
-                w1_ena <= '1';
-                w1_enb <= '1';
-                next_state <= ST_CAPTURE_FFT;
+                iq00_ena <= '1';
+                q01_ena  <= '1';
+                w0_ena   <= '1';
+                w1_ena   <= '1';
+                next_state <= ST_CAPTURE_NTT;
 
-            when ST_CAPTURE_FFT =>
+            when ST_CAPTURE_NTT =>
                 -- dout ya es estable; los operandos se registran en este ciclo.
-                next_state <= ST_CALC_X;
+                next_state <= ST_CALC_E;
 
-            when ST_CALC_X =>
+            when ST_CALC_E =>
                 -- Forma X_re y X_im sumando/restando los cuatro productos.
                 next_state <= ST_WR_Q01;
 
@@ -555,6 +580,11 @@ begin
                 v            <= (others => '0');
                 z            <= (others => '0');
                 w0           <= (others => '0');
+                d            <= (others => '0');
+                q01_d        <= (others => '0');
+                w0_d         <= (others => '0');
+                w0_d1        <= (others => '0');
+                ntt_out_count <= (others => '0');
 
             else
                 rescale_valid <= '0';
@@ -575,12 +605,14 @@ begin
                     q01_addra <= (others => '0');
                     w1_addra  <= (others => '0');
                     u <= (others => '0');
-                    prod_uu <= (others => '0');
-                    prod_un <= (others => '0');
-                    prod_nu <= (others => '0');
-                    prod_nn <= (others => '0');
                     q01_a <= (others => '0');
                     q01_b <= (others => '0');
+                    d <= (others => '0');
+                    e <= (others => '0');
+                    f <= (others => '0');
+                    q01_d <= (others => '0');
+                    w0_d <= (others => '0');
+                    w0_d1 <= (others => '0');
 
                 when ST_WR_NTT =>
                     if ntt_q00_valid = '1' then
@@ -619,35 +651,45 @@ begin
                     null;
 
                 when ST_RD_FFT =>
-                    q00_addra <= std_logic_vector(resize(u, q00_addra'length));
-                
-                    q01_addra <= std_logic_vector(resize(u, q01_addra'length));
-                    q01_addrb <= std_logic_vector(resize(u + to_unsigned(g_num_samples / 2, u'length), q01_addrb'length));
+                    iq00_addra <= std_logic_vector(unsigned(iq00_addra) + to_unsigned(1, iq00_addra'length));
+                    q01_addra  <= std_logic_vector(unsigned(q01_addra) + to_unsigned(1, q01_addra'length));
+                    w0_addra   <= std_logic_vector(unsigned(w0_addra) + to_unsigned(1, w0_addra'length));
+                    w1_addra   <= std_logic_vector(unsigned(w1_addra) + to_unsigned(1, w1_addra'length));
 
-                    w1_addra <= std_logic_vector(resize(u, w1_addra'length));
-                    w1_addrb <= std_logic_vector(resize(u + to_unsigned(g_num_samples / 2, u'length), w1_addrb'length));
+                    ntt_out_count <= (others => '0');
 
                 when ST_WAIT_FFT =>
-                    null;
+                    iq00_addra <= std_logic_vector(unsigned(iq00_addra) + to_unsigned(1, iq00_addra'length));
+                    q01_addra  <= std_logic_vector(unsigned(q01_addra) + to_unsigned(1, q01_addra'length));
+                    w0_addra   <= std_logic_vector(unsigned(w0_addra) + to_unsigned(1, w0_addra'length));
+                    w1_addra   <= std_logic_vector(unsigned(w1_addra) + to_unsigned(1, w1_addra'length));
 
                 when ST_WAIT_FFT_2 =>
-                    null;
+                    iq00_addra <= std_logic_vector(unsigned(iq00_addra) + to_unsigned(1, iq00_addra'length));
+                    q01_addra  <= std_logic_vector(unsigned(q01_addra) + to_unsigned(1, q01_addra'length));
+                    w0_addra   <= std_logic_vector(unsigned(w0_addra) + to_unsigned(1, w0_addra'length));
+                    w1_addra   <= std_logic_vector(unsigned(w1_addra) + to_unsigned(1, w1_addra'length));
 
                 when ST_CAPTURE_FFT =>
                     -- Producto complejo qhat01[u] * what1[u]. Los indices de
                     -- la segunda mitad representan las componentes imaginarias.
-                    prod_uu <= signed(q01_douta) * signed(w1_douta);
-                    prod_un <= signed(q01_douta) * signed(w1_doutb);
-                    prod_nu <= signed(q01_doutb) * signed(w1_douta);
-                    prod_nn <= signed(q01_doutb) * signed(w1_doutb);
 
-                    v <= resize(alpha, v'length) + resize(signed(q00_douta), v'length);
+                    d <= resize(signed(w1_douta), d'length) * resize(signed(iq00_douta), d'length);
+                    q01_d <= q01_douta;
+                    w0_d <= w0_douta;
+                    w0_d1 <= w0_d;
+                    f <= resize(signed(d), f'length) * resize(signed(q01_d), f'length);
+                    e <= resize(signed(w0_d1), e'length) + resize(signed(f), e'length);
 
-                when ST_CALC_X =>
-                    -- X_re = q01_re*w1_re - q01_im*w1_im.
-                    -- X_im = q01_re*w1_im + q01_im*w1_re.
-                    x_re <= resize(prod_uu, x_re'length) - resize(prod_nn, x_re'length);
-                    x_im <= resize(prod_un, x_im'length) + resize(prod_nu, x_im'length);
+                    if ntt_out_count < g_num_samples + 1 then
+                        ntt_out_count <= ntt_out_count + 1;
+                        if ntt_out_count < g_num_samples - 3 then
+                            iq00_addra <= std_logic_vector(unsigned(iq00_addra) + to_unsigned(1, iq00_addra'length));
+                            q01_addra  <= std_logic_vector(unsigned(q01_addra) + to_unsigned(1, q01_addra'length));
+                            w0_addra   <= std_logic_vector(unsigned(w0_addra) + to_unsigned(1, w0_addra'length));
+                            w1_addra   <= std_logic_vector(unsigned(w1_addra) + to_unsigned(1, w1_addra'length));
+                        end if;
+                    end if;
 
                 when ST_WR_Q01 =>
                     -- v = alpha + qhat00[u]. Las divisiones signed de VHDL
