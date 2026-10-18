@@ -1,0 +1,80 @@
+[
+  {
+    "label": "Impulso valido",
+    "error": 0,
+    "r1": 512,
+    "r2": 512
+  },
+  {
+    "label": "Rechazo temprano: q00 negativo",
+    "error": 1,
+    "r1": null,
+    "r2": null
+  },
+  {
+    "label": "Recuperacion: primer w1 no nulo en indice 511",
+    "error": 0,
+    "r1": 89600,
+    "r2": 89600
+  },
+  {
+    "label": "Sym-break: w1 completamente cero",
+    "error": 1,
+    "r1": 0,
+    "r2": 0
+  },
+  {
+    "label": "Sym-break: negativo antes de positivo",
+    "error": 1,
+    "r1": 2560,
+    "r2": 2560
+  },
+  {
+    "label": "Residuos P1 y P2 diferentes",
+    "error": 1,
+    "r1": 1431649110,
+    "r2": 715796651
+  },
+  {
+    "label": "Residuos iguales pero no divisibles por n",
+    "error": 1,
+    "r1": 1,
+    "r2": 1
+  },
+  {
+    "label": "Norma 6688: limite 6689",
+    "error": 0,
+    "r1": 3424256,
+    "r2": 3424256
+  },
+  {
+    "label": "Norma 6689: limite 6689",
+    "error": 0,
+    "r1": 3424768,
+    "r2": 3424768
+  },
+  {
+    "label": "Norma 6690: limite 6689",
+    "error": 1,
+    "r1": 3425280,
+    "r2": 3425280
+  },
+  {
+    "label": "Recuperacion: w1 denso con signos y h0 no uniforme",
+    "error": 0,
+    "r1": 349696,
+    "r2": 349696
+  },
+  {
+    "label": "q00 no constante y q01 denso: oraculo completo",
+    "error": 1,
+    "r1": 691273145,
+    "r2": 2023207273
+  },
+  {
+    "label": "Recuperacion final tras caso complejo",
+    "error": 0,
+    "r1": 512,
+    "r2": 512
+  }
+]
