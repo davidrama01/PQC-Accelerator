@@ -14,7 +14,7 @@ entity hawk_verify is
         clk         : in  std_logic;
         rst_n       : in  std_logic;
         data_in     : in  std_logic_vector(g_data_width - 1 downto 0);
-        data_out    : out std_logic_vector(g_data_width - 1 downto 0);
+        error_out   : out std_logic;
         ack_in      : in  std_logic;
         input_ready : out std_logic;
         ready       : in  std_logic;
@@ -285,13 +285,13 @@ begin
          (current_state = WRITE_Q01 and fifo_q01_full = '0' and fifo_norm_q01_full = '0') or
          (current_state = WRITE_W1 and fifo_w1_full = '0' and fifo_norm_w1_full = '0')) else '0';
 
-    -- Una palabra de resultado: 1 si hay error, 0 si verifica.
+    -- Resultado de un bit: 1 si hay error, 0 si verifica.
     -- Se mantiene estable hasta que el receptor acepte valid y ready.
     -- sym_break vale 1 si la condicion de signo se cumple.
     -- Los errores de ambas normas se conservan al recibir sus respectivos done.
     error_verify <= (not sym_break) or error_rebuild or
                     norm_p1_failed or norm_p2_failed or error_threshold;
-    data_out <= (0 => error_verify, others => '0');
+    error_out <= error_verify;
     valid <= '1' when current_state = SEND_RESULT and rst_n = '1' else '0';
     start_out <= '1' when rst_n = '1' and
                           (current_state = POLYQNORM_DONE or

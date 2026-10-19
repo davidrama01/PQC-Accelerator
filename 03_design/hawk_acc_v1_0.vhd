@@ -4,7 +4,6 @@ use ieee.numeric_std.all;
 
 entity hawk_acc_v1_0 is
 	generic (
-
 		-- Parameters of Axi Lite Slave Bus Interface S00_AXI
 		C_S00_AXI_DATA_WIDTH	: integer	:= 32;
 		C_S00_AXI_ADDR_WIDTH	: integer	:= 7;
@@ -16,7 +15,7 @@ entity hawk_acc_v1_0 is
 		C_M00_AXIS_TDATA_WIDTH	: integer	:= 32
 	);
 	port (
-		-- Users to add ports here
+		-- User ports
 
 		-- User ports ends
 		-- Do not modify the ports beyond this line
@@ -75,6 +74,9 @@ architecture arch_imp of hawk_acc_v1_0 is
 		);
 		port (
 		done_slv 		: in std_logic;
+        verify_error : in std_logic;
+        verify_done  : in std_logic;
+        mode : out std_logic;
 		done_mst 		: in std_logic;
 		start_mst 		: in std_logic;
 		start_slv 		: out std_logic;
@@ -110,6 +112,7 @@ architecture arch_imp of hawk_acc_v1_0 is
 		sot 			: in std_logic;
 		eot 			: out std_logic;
 		ack_slv 		: out std_logic;
+        ready_slv : in std_logic := '1';
 		data_slv	 	: out std_logic_vector(C_S_AXIS_TDATA_WIDTH-1 downto 0);
 		S_AXIS_ACLK		: in std_logic;
 		S_AXIS_ARESETN	: in std_logic;
@@ -148,21 +151,28 @@ architecture arch_imp of hawk_acc_v1_0 is
 		port (
 			clk         : in  std_logic;
 			rst_n       : in  std_logic;
+            mode        : in  std_logic;
 			data_slv    : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
 			data_mst    : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
 			ack_slv     : in  std_logic;
+            ready_slv   : out std_logic;
 			ready		: in  std_logic;
 			valid     	: out std_logic;
 			last_word   : out std_logic;
-			start_mst   : out std_logic
+			start_mst   : out std_logic;
+            verify_error : out std_logic;
+            verify_done  : out std_logic
 		);
 	end component hawk_acc;
 
+	signal verify_error, verify_done : std_logic;
+    signal mode : std_logic;
 	signal start_slv 	: std_logic;
 	signal start_mst 	: std_logic;
 	signal done_slv 	: std_logic;
 	signal done_mst 	: std_logic;
 	signal ack_slv 		: std_logic;
+    signal ready_slv : std_logic;
 	signal valid 		: std_logic;
 	signal data_slv	 	: std_logic_vector(C_S00_AXIS_TDATA_WIDTH-1 downto 0);
 	signal data_mst	 	: std_logic_vector(C_M00_AXIS_TDATA_WIDTH-1 downto 0);
@@ -180,6 +190,9 @@ hawk_acc_v1_0_S00_AXI_inst : hawk_acc_v1_0_S00_AXI
 	)
 	port map (
 		done_slv 		=> done_slv,
+        verify_error => verify_error,
+        verify_done  => verify_done,
+        mode => mode,
 		done_mst 		=> done_mst,
 		start_slv 		=> start_slv,
 		start_mst 		=> start_mst,
@@ -215,6 +228,7 @@ hawk_acc_v1_0_S00_AXIS_inst : hawk_acc_v1_0_S00_AXIS
 		sot 			=> start_slv,
 		eot 			=> done_slv,
 		ack_slv 		=> ack_slv,
+        ready_slv => ready_slv,
 		data_slv	 	=> data_slv,
 		S_AXIS_ACLK		=> s00_axis_aclk,
 		S_AXIS_ARESETN	=> s00_axis_aresetn,
@@ -253,13 +267,17 @@ hawk_acc_inst : hawk_acc
 	port map (
 		clk         => m00_axis_aclk,
 		rst_n       => m00_axis_aresetn,
+        mode        => mode,
 		data_slv    => data_slv,
 		data_mst    => data_mst,
 		ack_slv     => ack_slv,
+        ready_slv   => ready_slv,
 		ready	    => m00_axis_tready,
 		valid     	=> valid,
 		last_word   => last_word,
-		start_mst   => start_mst
+		start_mst   => start_mst,
+        verify_error => verify_error,
+        verify_done  => verify_done
 	);
 
 end arch_imp;

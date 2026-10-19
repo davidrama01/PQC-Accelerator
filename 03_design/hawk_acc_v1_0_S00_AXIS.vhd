@@ -19,6 +19,7 @@ entity hawk_acc_v1_0_S00_AXIS is
 		eot 			: out std_logic;
 		-- Valid handshake of received data
 		ack_slv 		: out std_logic;
+        ready_slv : in std_logic := '1';
 		-- Data output
 		data_slv	 	: out std_logic_vector(C_S_AXIS_TDATA_WIDTH-1 downto 0);
 
@@ -58,7 +59,7 @@ begin
 	S_AXIS_TREADY	<= axis_tready;
 	data_slv	 	<= S_AXIS_TDATA when (S_AXIS_TVALID = '1' and axis_tready = '1') else (others => '0');
 	eot 			<= eot_d;
-	axis_tready 	<= '1' when slv_exec_state = RECEIVE_WORD else '0';
+	axis_tready 	<= '1' when slv_exec_state = RECEIVE_WORD and ready_slv = '1' and S_AXIS_ARESETN = '1' else '0';
 
 	-- Valid handshake generation
 	ack_slv 		<= S_AXIS_TVALID and axis_tready;

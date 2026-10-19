@@ -16,6 +16,9 @@ entity hawk_acc_v1_0_S00_AXI is
 	);
 	port (
 		-- Users to add ports here
+        verify_error : in std_logic;
+        verify_done  : in std_logic;
+        mode : out std_logic;
 		done_slv : in std_logic;
 		done_mst : in std_logic;
 		start_mst : in std_logic;
@@ -145,6 +148,8 @@ architecture arch_imp of hawk_acc_v1_0_S00_AXI is
 	signal slv_reg31	:std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
 	signal slv_reg_rden	: std_logic;
 	signal slv_reg_wren	: std_logic;
+	-- 0x0C: bit 0 = error, bit 1 = resultado disponible (solo lectura).
+    signal verify_status : std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
 	signal reg_data_out	:std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
 	signal byte_index	: integer;
 	signal aw_en	: std_logic;
@@ -661,7 +666,7 @@ begin
 	-- and the slave is ready to accept the read address.
 	slv_reg_rden <= axi_arready and S_AXI_ARVALID and (not axi_rvalid) ;
 
-	process (slv_reg0, slv_reg1, slv_reg2, slv_reg3, slv_reg4, slv_reg5, slv_reg6, slv_reg7, slv_reg8, slv_reg9, slv_reg10, slv_reg11, slv_reg12, slv_reg13, slv_reg14, slv_reg15, slv_reg16, slv_reg17, slv_reg18, slv_reg19, slv_reg20, slv_reg21, slv_reg22, slv_reg23, slv_reg24, slv_reg25, slv_reg26, slv_reg27, slv_reg28, slv_reg29, slv_reg30, slv_reg31, axi_araddr, S_AXI_ARESETN, slv_reg_rden)
+	process (verify_status, slv_reg0, slv_reg1, slv_reg2, slv_reg3, slv_reg4, slv_reg5, slv_reg6, slv_reg7, slv_reg8, slv_reg9, slv_reg10, slv_reg11, slv_reg12, slv_reg13, slv_reg14, slv_reg15, slv_reg16, slv_reg17, slv_reg18, slv_reg19, slv_reg20, slv_reg21, slv_reg22, slv_reg23, slv_reg24, slv_reg25, slv_reg26, slv_reg27, slv_reg28, slv_reg29, slv_reg30, slv_reg31, axi_araddr, S_AXI_ARESETN, slv_reg_rden)
 	variable loc_addr :std_logic_vector(OPT_MEM_ADDR_BITS downto 0);
 	begin
 	    -- Address decoding for reading registers
@@ -674,7 +679,7 @@ begin
 	      when b"00010" =>
 	        reg_data_out <= slv_reg2;
 	      when b"00011" =>
-	        reg_data_out <= slv_reg3;
+	        reg_data_out <= verify_status;
 	      when b"00100" =>
 	        reg_data_out <= slv_reg4;
 	      when b"00101" =>
@@ -756,6 +761,24 @@ begin
 
 
 	-- Add user logic here
+    -- Igual que done_slv/done_mst, estas senales requieren el mismo reloj
+    -- para el acelerador y AXI-Lite. El resultado sobrevive al reset interno.
+    process (S_AXI_ACLK)
+    begin
+        if rising_edge(S_AXI_ACLK) then
+            if S_AXI_ARESETN = '0' then
+                verify_status <= (others => '0');
+            elsif slv_reg0(0) = '1' then
+                verify_status <= (others => '0');
+            elsif verify_done = '1' then
+                verify_status <= (0 => verify_error, 1 => '1', others => '0');
+            end if;
+        end if;
+    end process;
+
+    -- 0x10, bit 0: 0 = firma, 1 = verificacion. Reset selecciona firma.
+    -- Configurar antes de start_slv y mantener durante toda la operacion.
+    mode <= slv_reg4(0);
 	start_slv <= slv_reg0(0);
 	-- User logic ends
 

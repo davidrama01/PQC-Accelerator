@@ -432,12 +432,14 @@ architecture simulation of hawk_verify_tb is
 begin
     clk <= not clk after C_CLK_PERIOD / 2;
 
+    data_out(31 downto 1) <= (others => '0');
+
     dut : entity work.hawk_verify(rtl)
         port map (
             clk         => clk,
             rst_n       => rst_n,
             data_in     => data_in,
-            data_out    => data_out,
+            error_out   => data_out(0),
             ack_in      => ack_in,
             input_ready => input_ready,
             ready       => ready,
