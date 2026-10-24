@@ -1,6 +1,7 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
+use work.hawk_pkg.all;
 use STD.ENV.ALL;
 
 entity rebuild_s0_tb is
@@ -9,7 +10,7 @@ end entity rebuild_s0_tb;
 architecture simulation of rebuild_s0_tb is
     constant C_NUM_SAMPLES : positive := 512;
     constant C_DATA_WIDTH  : positive := 32;
-    constant C_ADDR_WIDTH  : positive := 9;
+    constant C_ADDR_WIDTH  : positive := 10;
     constant C_CLK_PERIOD  : time := 10 ns;
     constant C_TIMEOUT     : positive := 1000000;
 
@@ -576,11 +577,11 @@ begin
 
     dut : entity work.rebuild_s0(rtl)
         generic map (
-            g_num_samples => C_NUM_SAMPLES,
             g_data_width  => C_DATA_WIDTH,
             g_addr_width  => C_ADDR_WIDTH
         )
         port map (
+            num_samples => C_NUM_SAMPLES,
             clk            => clk,
             rst_n          => rst_n,
             start          => start,
@@ -589,7 +590,7 @@ begin
             data_q00       => data_q00,
             data_q01       => data_q01,
             data_w1        => data_w1,
-            data_h0        => data_h0,
+            data_h0        => std_logic_vector(resize(unsigned(data_h0), c_max_samples)),
             data_out       => data_out,
             data_out_valid => data_out_valid,
             error          => dut_error

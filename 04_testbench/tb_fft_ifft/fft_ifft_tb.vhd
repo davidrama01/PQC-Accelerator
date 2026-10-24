@@ -9,7 +9,7 @@ end entity fft_ifft_tb;
 architecture simulation of fft_ifft_tb is
     constant C_NUM_SAMPLES : positive := 512;
     constant C_DATA_WIDTH  : positive := 32;
-    constant C_ADDR_WIDTH  : positive := 9;
+    constant C_ADDR_WIDTH  : positive := 10;
     constant C_CLK_PERIOD  : time := 10 ns;
 
     type sample_array_t is array (0 to C_NUM_SAMPLES - 1) of
@@ -74,11 +74,11 @@ begin
 
     fft_dut : entity work.fft(rtl)
         generic map (
-            g_num_samples => C_NUM_SAMPLES,
             g_data_width  => C_DATA_WIDTH,
             g_addr_width  => C_ADDR_WIDTH
         )
         port map (
+            num_samples => C_NUM_SAMPLES,
             clk            => clk,
             rst_n          => rst_n,
             start          => fft_start,
@@ -91,11 +91,11 @@ begin
 
     ifft_dut : entity work.ifft(rtl)
         generic map (
-            g_num_samples => C_NUM_SAMPLES,
             g_data_width  => C_DATA_WIDTH,
             g_addr_width  => C_ADDR_WIDTH
         )
         port map (
+            num_samples => C_NUM_SAMPLES,
             clk            => clk,
             rst_n          => rst_n,
             start          => ifft_start,
