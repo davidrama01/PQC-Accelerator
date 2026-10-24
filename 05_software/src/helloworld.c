@@ -57,6 +57,7 @@
 #include "hawk_params.h"
 #include "keygen.h"
 #include "hawk_sign.h"
+#include "hawk_verify.h"
 
 #define MAX_BURST 256
 #define DMA_ID XPAR_AXI_DMA_0_DEVICE_ID
@@ -107,6 +108,15 @@ int main()
         bytes_to_hex(sig_hex, sig, HAWK_SIG_BYTES);
         xil_printf("signature = 0x%s\r\n", sig_hex);
         print("Successfully ran signing process\n");
+        int verify_result = hawk_verify(sig, sizeof sig, pub, sizeof pub,
+                                        message, sizeof message - 1U);
+        if (verify_result == 1) {
+            print("Signature verified successfully\n");
+        } else if (verify_result == 0) {
+            print("Signature verification failed\n");
+        } else {
+            xil_printf("Verification execution error: %d\r\n", verify_result);
+        }
     } else {
         print("Signing process failed\n");
     }
