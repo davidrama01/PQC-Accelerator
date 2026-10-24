@@ -9,7 +9,6 @@ package hawk_pkg is
     constant c_num_samples  : integer range 0 to c_max_samples := 1024;
     constant c_data_width   : integer range 0 to 40 := 32;
     constant c_addr_width   : integer range 0 to 10 := 10;
-    constant c_size_fifo : integer range 0 to c_max_samples := c_num_samples / c_data_width;
 
     -- Rebuild S0 constants
 

@@ -7,8 +7,7 @@ entity hawk_verify is
     generic (
         g_data_width  : integer := 32;
 
-        g_addr_width  : integer := c_addr_width;
-        g_size_fifo   : integer := c_size_fifo
+        g_addr_width  : integer := c_addr_width
     );
     port (
         num_samples : in integer range 256 to c_max_samples := c_num_samples;
@@ -67,7 +66,6 @@ architecture rtl of hawk_verify is
     signal reset_count : natural range 0 to C_RESET_CYCLES + C_RECOVERY_CYCLES - 1;
     signal core_rst_n  : std_logic;
 
-    -- g_size_fifo se conserva por compatibilidad con la interfaz existente.
     -- El numero de palabras de h0 se obtiene de sus bits y del ancho del bus.
     signal c_h0_words : integer range 8 to 32;
     signal h0     : std_logic_vector(c_max_samples - 1 downto 0);

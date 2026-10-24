@@ -7,8 +7,7 @@ entity hawk_sign is
 	generic (
 		g_data_width : integer := 32;
 
-        g_addr_width : integer := c_addr_width;
-        g_size_fifo : integer := 512
+        g_addr_width : integer := c_addr_width
 	);
 	port (
         num_samples : in integer range 256 to c_max_samples := c_num_samples;
