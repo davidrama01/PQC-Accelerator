@@ -7,7 +7,7 @@ entity hawk_verify is
     generic (
         g_data_width  : integer := 32;
         g_num_samples : integer := 512;
-        g_addr_width  : integer := 9;
+        g_addr_width  : integer := c_addr_width;
         g_size_fifo   : integer := c_size_fifo
     );
     port (
@@ -201,7 +201,7 @@ architecture rtl of hawk_verify is
         generic (
             g_num_samples : integer := 512;
             g_data_width  : integer := 32;
-            g_addr_width  : integer := 9;
+            g_addr_width  : integer := c_addr_width;
             g_modulus     : positive := 2147473409
         );
         port (
@@ -224,7 +224,7 @@ architecture rtl of hawk_verify is
         generic (
             g_num_samples : integer := 512;
             g_data_width  : integer := 32;
-            g_addr_width  : integer := 9
+            g_addr_width  : integer := c_addr_width
         );
         port (
             clk            : in  std_logic;

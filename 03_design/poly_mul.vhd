@@ -1,12 +1,13 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
+use work.hawk_pkg.all;
 
 entity poly_mul is
     generic (
         g_num_samples   : integer := 512;
         g_data_width    : integer := 16;
-        g_addr_width    : integer := 9 -- Log2(g_num_samples)
+        g_addr_width    : integer := c_addr_width -- Log2(g_num_samples)
     );
     port (
         clk         : in std_logic;

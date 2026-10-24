@@ -1,12 +1,13 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
+use work.hawk_pkg.all;
 
 entity ifft is
     generic (
         g_num_samples : integer := 512;
         g_data_width  : integer := 32;
-        g_addr_width  : integer := 9
+        g_addr_width  : integer := c_addr_width
     );
     port (
         clk         : in std_logic;
@@ -62,7 +63,7 @@ architecture rtl of ifft is
     signal v  : std_logic_vector(12 downto 0);
     signal v0 : std_logic_vector(12 downto 0);
 
-    signal addr_delta : std_logic_vector(9 downto 0);
+    signal addr_delta : std_logic_vector(g_addr_width - 1 downto 0);
     signal rom_delta  : std_logic_vector(2 * g_data_width - 1 downto 0);
     signal delta_real : signed(g_data_width - 1 downto 0);
     signal delta_imag : signed(g_data_width - 1 downto 0);
@@ -94,15 +95,15 @@ architecture rtl of ifft is
 			clka  : in  std_logic;
 			ena   : in  std_logic;
 			wea   : in  std_logic_vector(0 downto 0);
-			addra : in  std_logic_vector(8 downto 0);
-			dina  : in  std_logic_vector(g_data_width-1 downto 0);
-			douta : out std_logic_vector(g_data_width-1 downto 0);
+			addra : in  std_logic_vector(g_addr_width - 1 downto 0);
+			dina  : in  std_logic_vector(g_data_width - 1 downto 0);
+			douta : out std_logic_vector(g_data_width - 1 downto 0);
 			clkb  : in  std_logic;
 			enb   : in  std_logic;
 			web   : in  std_logic_vector(0 downto 0);
-			addrb : in  std_logic_vector(8 downto 0);
-            dinb  : in  std_logic_vector(g_data_width-1 downto 0);
-            doutb : out std_logic_vector(g_data_width-1 downto 0)
+			addrb : in  std_logic_vector(g_addr_width - 1 downto 0);
+            dinb  : in  std_logic_vector(g_data_width - 1 downto 0);
+            doutb : out std_logic_vector(g_data_width - 1 downto 0)
 		);
 	end component;
 
@@ -110,7 +111,7 @@ architecture rtl of ifft is
         port (
             clka  : in  std_logic;
             ena   : in  std_logic;
-            addra : in  std_logic_vector(9 downto 0);
+            addra : in  std_logic_vector(g_addr_width - 1 downto 0);
             douta : out std_logic_vector(2 * g_data_width - 1 downto 0)
         );
     end component;

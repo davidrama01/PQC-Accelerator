@@ -19,7 +19,7 @@ entity hawk_acc_v1_0_S00_AXIS is
 		eot 			: out std_logic;
 		-- Valid handshake of received data
 		ack_slv 		: out std_logic;
-        ready_slv : in std_logic := '1';
+        ready_slv 		: in std_logic := '1';
 		-- Data output
 		data_slv	 	: out std_logic_vector(C_S_AXIS_TDATA_WIDTH-1 downto 0);
 

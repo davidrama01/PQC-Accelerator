@@ -1,12 +1,13 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
+use work.hawk_pkg.all;
 
 entity polyqnorm is
     generic (
         g_num_samples : integer := 512;
         g_data_width  : integer := 32;
-        g_addr_width  : integer := 9;
+        g_addr_width  : integer := c_addr_width;
         g_modulus     : positive := 2147473409
     );
     port (
@@ -147,13 +148,13 @@ architecture rtl of polyqnorm is
             clka  : in std_logic;
             ena   : in std_logic;
             wea   : in std_logic_vector(0 downto 0);
-            addra : in std_logic_vector(8 downto 0);
+            addra : in std_logic_vector(g_addr_width - 1 downto 0);
             dina  : in std_logic_vector(g_data_width - 1 downto 0);
             douta : out std_logic_vector(g_data_width - 1 downto 0);
             clkb  : in std_logic;
             enb   : in std_logic;
             web   : in std_logic_vector(0 downto 0);
-            addrb : in std_logic_vector(8 downto 0);
+            addrb : in std_logic_vector(g_addr_width - 1 downto 0);
             dinb  : in std_logic_vector(g_data_width - 1 downto 0);
             doutb : out std_logic_vector(g_data_width - 1 downto 0)
         );

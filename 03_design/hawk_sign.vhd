@@ -7,8 +7,8 @@ entity hawk_sign is
 	generic (
 		g_data_width : integer := 32;
         g_num_samples : integer := 512;
-        g_addr_width : integer := 9;
-        g_size_fifo : integer := c_size_fifo
+        g_addr_width : integer := c_addr_width;
+        g_size_fifo : integer := 512
 	);
 	port (
 		clk      : in  std_logic;
@@ -73,11 +73,11 @@ architecture rtl of hawk_sign is
     signal wea_x0 : std_logic_vector(0 downto 0);
     signal wea_x1 : std_logic_vector(0 downto 0);
     signal wea_w1 : std_logic_vector(0 downto 0);
-    signal ram_addr_f : std_logic_vector(8 downto 0);
-    signal ram_addr_g : std_logic_vector(8 downto 0);
-    signal ram_addr_x0 : std_logic_vector(8 downto 0);
-    signal ram_addr_x1 : std_logic_vector(8 downto 0);
-    signal ram_addr_w1 : std_logic_vector(8 downto 0);
+    signal ram_addr_f : std_logic_vector(g_addr_width-1 downto 0);
+    signal ram_addr_g : std_logic_vector(g_addr_width-1 downto 0);
+    signal ram_addr_x0 : std_logic_vector(g_addr_width-1 downto 0);
+    signal ram_addr_x1 : std_logic_vector(g_addr_width-1 downto 0);
+    signal ram_addr_w1 : std_logic_vector(g_addr_width-1 downto 0);
     signal start_t : std_logic;
     signal start_w1 : std_logic;
     signal start_s1 : std_logic;
@@ -95,7 +95,7 @@ architecture rtl of hawk_sign is
 
     signal ram_en       : std_logic;
 	signal ram_wea      : std_logic_vector(0 downto 0);
-	signal addr_f       : unsigned(8 downto 0);
+	signal addr_f       : unsigned(g_addr_width-1 downto 0);
 	signal ram_dina     : std_logic_vector(g_data_width-1 downto 0);
 	signal ram_doutf    : std_logic_vector(g_data_width-1 downto 0);
     signal ram_doutg    : std_logic_vector(g_data_width-1 downto 0);
@@ -103,11 +103,11 @@ architecture rtl of hawk_sign is
     signal ram_dout_x1   : std_logic_vector(g_data_width-1 downto 0);
     signal ram_dout_w1   : std_logic_vector(g_data_width-1 downto 0);
 
-    signal addr_f_int : std_logic_vector(8 downto 0);
-    signal addr_g_int : std_logic_vector(8 downto 0);
-    signal addr_x0_int : std_logic_vector(8 downto 0);
-    signal addr_x1_int : std_logic_vector(8 downto 0);
-    signal addr_w1_s1 : std_logic_vector(8 downto 0);
+    signal addr_f_int : std_logic_vector(g_addr_width-1 downto 0);
+    signal addr_g_int : std_logic_vector(g_addr_width-1 downto 0);
+    signal addr_x0_int : std_logic_vector(g_addr_width-1 downto 0);
+    signal addr_x1_int : std_logic_vector(g_addr_width-1 downto 0);
+    signal addr_w1_s1 : std_logic_vector(g_addr_width-1 downto 0);
 
     signal ready_sym_break : std_logic;
     signal sym_break : std_logic;
@@ -159,7 +159,7 @@ architecture rtl of hawk_sign is
 			clka  : in  std_logic;
 			ena   : in  std_logic;
 			wea   : in  std_logic_vector(0 downto 0);
-			addra : in  std_logic_vector(8 downto 0);
+			addra : in  std_logic_vector(g_addr_width-1 downto 0);
 			dina  : in  std_logic_vector(g_data_width-1 downto 0);
 			douta : out std_logic_vector(g_data_width-1 downto 0)
 		);
@@ -186,7 +186,7 @@ architecture rtl of hawk_sign is
         generic (
             g_num_samples : integer := 512;
             g_data_width  : integer := 16;
-            g_addr_width  : integer := 9
+            g_addr_width  : integer := c_addr_width
         );
         port (
             clk         : in std_logic;
@@ -225,7 +225,7 @@ architecture rtl of hawk_sign is
         generic (
             g_num_samples : integer := 512;
             g_data_width  : integer := 16;
-            g_addr_width  : integer := 9
+            g_addr_width  : integer := c_addr_width
         );
         port (
             clk         : in std_logic;
@@ -524,20 +524,20 @@ begin
     wea_x0 <= "1" when wr_x0 = '1' else "0";
     wea_x1 <= "1" when wr_x1 = '1' else "0";
     wea_w1 <= "1" when wr_w1 = '1' else "0";
-    ram_addr_f <= std_logic_vector(to_unsigned(cnt_f, 9)) when current_state = WRITE_F else
+    ram_addr_f <= std_logic_vector(to_unsigned(cnt_f, g_addr_width)) when current_state = WRITE_F else
                   addr_f_int when current_state = CALC_W1 else
                   (others => '0');
-    ram_addr_g <= std_logic_vector(to_unsigned(cnt_g, 9)) when current_state = WRITE_G else
+    ram_addr_g <= std_logic_vector(to_unsigned(cnt_g, g_addr_width)) when current_state = WRITE_G else
                   addr_g_int when current_state = CALC_W1 else
                   (others => '0');
-    ram_addr_x0 <= std_logic_vector(to_unsigned(cnt_x0, 9)) when current_state = WRITE_X0 else
+    ram_addr_x0 <= std_logic_vector(to_unsigned(cnt_x0, g_addr_width)) when current_state = WRITE_X0 else
                    addr_x0_int when current_state = CALC_W1 else
                    (others => '0');
-    ram_addr_x1 <= std_logic_vector(to_unsigned(cnt_x1, 9)) when current_state = WRITE_X1 else
+    ram_addr_x1 <= std_logic_vector(to_unsigned(cnt_x1, g_addr_width)) when current_state = WRITE_X1 else
                    addr_x1_int when current_state = CALC_W1 else
                    (others => '0');
     ram_addr_w1 <= addr_w1_s1 when current_state = CALC_S1 else
-                   std_logic_vector(to_unsigned(cnt_w1, 9));
+                   std_logic_vector(to_unsigned(cnt_w1, g_addr_width));
 
 	ram_f : blk_mem_gen_0
 		port map (

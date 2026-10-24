@@ -30,7 +30,7 @@ architecture rtl of hawk_acc is
         generic (
             g_data_width  : integer := 32;
             g_num_samples : integer := 512;
-            g_addr_width  : integer := 9;
+            g_addr_width  : integer := c_addr_width;
             g_size_fifo   : integer := c_size_fifo
         );
         port (
@@ -50,7 +50,7 @@ architecture rtl of hawk_acc is
         generic (
             g_data_width  : integer := 32;
             g_num_samples : integer := 512;
-            g_addr_width  : integer := 9;
+            g_addr_width  : integer := c_addr_width;
             g_size_fifo   : integer := c_size_fifo
         );
         port (
@@ -95,7 +95,7 @@ begin
         generic map (
             g_data_width  => C_DATA_WIDTH,
             g_num_samples => c_num_samples,
-            g_addr_width  => 9,
+            g_addr_width  => c_addr_width,
             g_size_fifo   => c_size_fifo
         )
         port map (
@@ -114,7 +114,7 @@ begin
         generic map (
             g_data_width  => C_DATA_WIDTH,
             g_num_samples => c_num_samples,
-            g_addr_width  => 9,
+            g_addr_width  => c_addr_width,
             g_size_fifo   => c_size_fifo
         )
         port map (

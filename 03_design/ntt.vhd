@@ -1,12 +1,13 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
+use work.hawk_pkg.all;
 
 entity ntt is
     generic (
         g_num_samples : integer := 512;
         g_data_width  : integer := 32;
-        g_addr_width  : integer := 9;
+        g_addr_width  : integer := c_addr_width;
         g_modulus     : positive := 2147473409 -- Solo P1 o P2; selecciona tambien la ROM.
     );
     port (
@@ -46,8 +47,8 @@ architecture rtl of ntt is
     --
     -- Entradas/salidas: residuos unsigned en [0,p-1], sin escalado Q31.
     -- El emisor debe reducir las entradas; los negativos se codifican mod p.
-    -- La configuracion actual de las IP y sus tablas corresponde a n=512.
-    -- IP de RAM y ROM: 512 x 32. RAM con dos ciclos de lectura y EN activo
+    -- RAM y ROM deben tener 1024 posiciones y direcciones de 10 bits.
+    -- Datos de 32 bits. RAM con dos ciclos de lectura y EN activo
     -- en ambos ciclos. La ROM admite uno o dos ciclos de lectura.
     ---------------------------------------------------------------------------
     type state_t is (
@@ -106,7 +107,7 @@ architecture rtl of ntt is
     signal i : unsigned(12 downto 0);
     signal j : unsigned(12 downto 0);
 
-    signal addr_gamma : std_logic_vector(8 downto 0);
+    signal addr_gamma : std_logic_vector(g_addr_width - 1 downto 0);
     signal rom_gamma  : std_logic_vector(g_data_width - 1 downto 0);
 
     -- Operandos registrados antes de sobrescribir sus posiciones en RAM.
@@ -123,13 +124,13 @@ architecture rtl of ntt is
             clka  : in std_logic;
             ena   : in std_logic;
             wea   : in std_logic_vector(0 downto 0);
-            addra : in std_logic_vector(8 downto 0);
+            addra : in std_logic_vector(g_addr_width - 1 downto 0);
             dina  : in std_logic_vector(g_data_width - 1 downto 0);
             douta : out std_logic_vector(g_data_width - 1 downto 0);
             clkb  : in std_logic;
             enb   : in std_logic;
             web   : in std_logic_vector(0 downto 0);
-            addrb : in std_logic_vector(8 downto 0);
+            addrb : in std_logic_vector(g_addr_width - 1 downto 0);
             dinb  : in std_logic_vector(g_data_width - 1 downto 0);
             doutb : out std_logic_vector(g_data_width - 1 downto 0)
         );
@@ -137,22 +138,22 @@ architecture rtl of ntt is
 
     -- Gamma[q] = gamma_raiz^rev_log2(n)(q) mod p, precalculada en ROM.
     -- Se consulta q=m+i: las t mariposas de un grupo comparten el factor.
-    -- P1: gamma_p1_n512.coe, 512 x 32 bits.
+    -- P1: gamma_p1_n1024.coe, 1024 x 32 bits (prefijo para n menor).
     component blk_mem_gen_3
         port (
             clka  : in std_logic;
             ena   : in std_logic;
-            addra : in std_logic_vector(8 downto 0);
+            addra : in std_logic_vector(g_addr_width - 1 downto 0);
             douta : out std_logic_vector(g_data_width - 1 downto 0)
         );
     end component;
 
-    -- P2: gamma_p2_n512.coe, 512 x 32 bits.
+    -- P2: gamma_p2_n1024.coe, 1024 x 32 bits (prefijo para n menor).
     component blk_mem_gen_4
         port (
             clka  : in std_logic;
             ena   : in std_logic;
-            addra : in std_logic_vector(8 downto 0);
+            addra : in std_logic_vector(g_addr_width - 1 downto 0);
             douta : out std_logic_vector(g_data_width - 1 downto 0)
         );
     end component;

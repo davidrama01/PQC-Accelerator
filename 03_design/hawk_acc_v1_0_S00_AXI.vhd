@@ -16,13 +16,13 @@ entity hawk_acc_v1_0_S00_AXI is
 	);
 	port (
 		-- Users to add ports here
-        verify_error : in std_logic;
-        verify_done  : in std_logic;
-        mode : out std_logic;
-		done_slv : in std_logic;
-		done_mst : in std_logic;
-		start_mst : in std_logic;
-		start_slv : out std_logic;
+        verify_error 	: in std_logic;
+        verify_done  	: in std_logic;
+        mode 			: out std_logic;
+		done_slv 		: in std_logic;
+		done_mst 		: in std_logic;
+		start_mst 		: in std_logic;
+		start_slv 		: out std_logic;
 		-- User ports ends
 		-- Do not modify the ports beyond this line
 
