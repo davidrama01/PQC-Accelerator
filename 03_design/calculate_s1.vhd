@@ -7,11 +7,12 @@ use work.hawk_pkg.all;
 
 entity calculate_s1 is
     generic (
-        g_num_samples : integer := 512;
+
         g_data_width  : integer := 16;
         g_addr_width  : integer := c_addr_width
     );
     port (
+        num_samples : in integer range 256 to c_max_samples := c_num_samples;
         clk         : in std_logic;
         rst_n       : in std_logic;
         start       : in std_logic;
@@ -19,7 +20,7 @@ entity calculate_s1 is
         done        : out std_logic;
         ready       : out std_logic;
         sym_break   : in std_logic;
-        h1          : in std_logic_vector(g_num_samples - 1 downto 0);
+        h1          : in std_logic_vector(c_max_samples - 1 downto 0);
         w1          : in std_logic_vector(g_data_width - 1 downto 0);
         addr        : out std_logic_vector(g_addr_width - 1 downto 0);
         s1          : out std_logic_vector(g_data_width - 1 downto 0)
@@ -31,7 +32,7 @@ architecture rtl of calculate_s1 is
 signal s1_internal : signed(g_data_width - 1 downto 0);
 signal done_d : std_logic;
 signal ready_d : std_logic;
-signal coefficient_index : integer range 0 to g_num_samples - 1;
+signal coefficient_index : integer range 0 to c_max_samples - 1;
 
 type state_t is (IDLE, REQUEST_DATA, CAPTURE_DATA, PRESENT_DATA);
 signal state : state_t;
@@ -81,7 +82,7 @@ begin
 
                     s1_internal <= resize(shift_right(diff, 1), g_data_width);
                     ready_d     <= '1';
-                    if coefficient_index = g_num_samples - 1 then
+                    if coefficient_index = num_samples - 1 then
                         done_d <= '1';
                     end if;
                     state <= PRESENT_DATA;
@@ -92,7 +93,7 @@ begin
                         ready_d <= '0';
                         done_d  <= '0';
 
-                        if coefficient_index = g_num_samples - 1 then
+                        if coefficient_index = num_samples - 1 then
                             state <= IDLE;
                             coefficient_index <= 0;
                         else
@@ -114,6 +115,6 @@ begin
     done <= done_d;
     ready <= ready_d;
     addr <= std_logic_vector(to_unsigned(coefficient_index, g_addr_width));
-    
+
     -- Multiplication logic here
 end architecture rtl;

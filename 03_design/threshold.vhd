@@ -7,10 +7,11 @@ use work.hawk_pkg.all;
 
 entity threshold is
     generic (
-        g_num_samples : integer := 512;
+
         g_data_width : integer := 16
     );
     port (
+        num_samples : in integer range 256 to c_max_samples := c_num_samples;
         clk         : in std_logic;
         rst_n       : in std_logic;
         start       : in std_logic;
@@ -28,11 +29,11 @@ signal flag_end_mul     : std_logic;
 signal flag_end_sum     : std_logic;
 signal verify_internal  : std_logic;
 signal done_d           : std_logic;
-signal index_counter    : integer range 0 to 1024;
+signal index_counter    : integer range 0 to c_max_samples;
 signal y                : signed(40 downto 0);
 signal acc0             : signed(40 downto 0);
 signal acc1             : signed(40 downto 0);
-    
+
 begin
 
     norm_process: process(clk, rst_n) begin
@@ -58,11 +59,11 @@ begin
                 flag_end_mul <= '0'; -- Reiniciar la bandera de fin de multiplicación
                 flag_end_sum <= '0'; -- Reiniciar la bandera de fin de suma
             elsif enable = '1' then
-                if index_counter < g_num_samples then
+                if index_counter < num_samples then
                     acc0 <= acc0 + resize((signed(x0) * signed(x0)),acc0'length);
                     acc1 <= acc1 + resize((signed(x1) * signed(x1)),acc1'length);
                     index_counter <= index_counter + 1;
-                    if index_counter = g_num_samples - 1 then
+                    if index_counter = num_samples - 1 then
                         flag_end_mul <= '1';
                     end if;
                 end if;
@@ -78,7 +79,7 @@ begin
                     acc0 <= (others => '0'); -- Reiniciar el acumulador 0
                     acc1 <= (others => '0'); -- Reiniciar el acumulador 1
                     index_counter <= 0; -- Reiniciar el contador de índices
-                    if y <= c_threshold_verify then
+                    if y <= signed(resize(verify_threshold(num_samples), y'length)) then
                         verify_internal <= '1';
                     else
                         verify_internal <= '0';
@@ -87,7 +88,7 @@ begin
             end if;
         end if;
     end process;
-    
+
     verify <= verify_internal;
     done <= done_d;
 

@@ -5,11 +5,12 @@ use work.hawk_pkg.all;
 
 entity poly_mul is
     generic (
-        g_num_samples   : integer := 512;
+
         g_data_width    : integer := 16;
-        g_addr_width    : integer := c_addr_width -- Log2(g_num_samples)
+        g_addr_width    : integer := c_addr_width -- Ancho fisico de direccion
     );
     port (
+        num_samples : in integer range 256 to c_max_samples := c_num_samples;
         clk         : in std_logic;
         rst_n       : in std_logic;
         start       : in std_logic;
@@ -26,9 +27,9 @@ architecture rtl of poly_mul is
 
 signal temp_result  : signed(2*g_data_width - 1 downto 0);
 signal acc          : signed(2*g_data_width - 1 downto 0);
-signal i            : integer range 0 to g_num_samples - 1;
-signal j_addr       : integer range 0 to g_num_samples - 1;
-signal j_data       : integer range 0 to g_num_samples - 1;
+signal i            : integer range 0 to c_max_samples - 1;
+signal j_addr       : integer range 0 to c_max_samples - 1;
+signal j_data       : integer range 0 to c_max_samples - 1;
 signal done_d       : std_logic;
 signal enable       : std_logic;
 signal reading      : std_logic;
@@ -63,7 +64,7 @@ begin
             elsif enable = '1' then
                 -- El ultimo dato llega un ciclo despues de presentar
                 -- la direccion correspondiente a j_addr = n - 1.
-                if data_valid = '1' and j_data = g_num_samples - 1 then
+                if data_valid = '1' and j_data = num_samples - 1 then
                     if j_data > i then
                         temp_product := -(signed(data_a) * signed(data_b));
                     else
@@ -75,7 +76,7 @@ begin
                     done_d      <= '1';
                     data_valid  <= '0';
 
-                    if i = g_num_samples - 1 then
+                    if i = num_samples - 1 then
                         i       <= 0;
                         enable  <= '0';
                         reading <= '0';
@@ -103,7 +104,7 @@ begin
                         j_data     <= j_addr;
                         data_valid <= '1';
 
-                        if j_addr = g_num_samples - 1 then
+                        if j_addr = num_samples - 1 then
                             reading <= '0';
                         else
                             j_addr <= j_addr + 1;
@@ -118,7 +119,9 @@ begin
 
     addr_a <= std_logic_vector(to_unsigned(j_addr, g_addr_width));
     addr_b <= std_logic_vector(
-        to_unsigned((i - j_addr + g_num_samples) mod g_num_samples, g_addr_width)
+        to_unsigned(i - j_addr, g_addr_width)
+    ) when i >= j_addr else std_logic_vector(
+        to_unsigned(i - j_addr + num_samples, g_addr_width)
     );
 
     result <= std_logic_vector(resize(temp_result, g_data_width));

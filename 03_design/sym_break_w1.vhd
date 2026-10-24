@@ -7,10 +7,11 @@ use work.hawk_pkg.all;
 
 entity sym_break_w1 is
     generic (
-        g_num_samples : integer := 512;
+
         g_data_width  : integer := 16
     );
     port (
+        num_samples : in integer range 256 to c_max_samples := c_num_samples;
         clk         : in std_logic;
         rst_n       : in std_logic;
         start       : in std_logic;
@@ -26,7 +27,7 @@ architecture rtl of sym_break_w1 is
 
 signal ready_d      : std_logic;
 signal sym_break_int: std_logic;
-signal cnt_w1       : integer range 0 to g_num_samples - 1 := 0;
+signal cnt_w1       : integer range 0 to c_max_samples - 1 := 0;
 signal nonzero_found: std_logic;
 
 begin
@@ -59,7 +60,7 @@ begin
                     end if;
                 end if;
 
-                if cnt_w1 = g_num_samples - 1 then
+                if cnt_w1 = num_samples - 1 then
                     ready_d <= '1';
                     cnt_w1  <= 0;
                 else
@@ -71,6 +72,6 @@ begin
 
     sym_break <= sym_break_int;
     ready   <= ready_d;
-    
+
 
 end architecture rtl;

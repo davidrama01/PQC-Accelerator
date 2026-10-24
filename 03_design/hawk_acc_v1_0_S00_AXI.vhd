@@ -19,6 +19,7 @@ entity hawk_acc_v1_0_S00_AXI is
         verify_error 	: in std_logic;
         verify_done  	: in std_logic;
         mode 			: out std_logic;
+        num_samples : out std_logic_vector(10 downto 0);
 		done_slv 		: in std_logic;
 		done_mst 		: in std_logic;
 		start_mst 		: in std_logic;
@@ -246,6 +247,7 @@ begin
 	slv_reg_wren <= axi_wready and S_AXI_WVALID and axi_awready and S_AXI_AWVALID ;
 
 	process (S_AXI_ACLK)
+	variable sample_value : std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
 	variable loc_addr :std_logic_vector(OPT_MEM_ADDR_BITS downto 0); 
 	begin
 	  if rising_edge(S_AXI_ACLK) then 
@@ -255,7 +257,7 @@ begin
 	      slv_reg2 <= (others => '0');
 	      slv_reg3 <= (others => '0');
 	      slv_reg4 <= (others => '0');
-	      slv_reg5 <= (others => '0');
+	      slv_reg5 <= std_logic_vector(to_unsigned(512, C_S_AXI_DATA_WIDTH));
 	      slv_reg6 <= (others => '0');
 	      slv_reg7 <= (others => '0');
 	      slv_reg8 <= (others => '0');
@@ -331,13 +333,19 @@ begin
 	              end if;
 	            end loop;
 	          when b"00101" =>
-	            for byte_index in 0 to (C_S_AXI_DATA_WIDTH/8-1) loop
-	              if ( S_AXI_WSTRB(byte_index) = '1' ) then
-	                -- Respective byte enables are asserted as per write strobes                   
-	                -- slave registor 5
-	                slv_reg5(byte_index*8+7 downto byte_index*8) <= S_AXI_WDATA(byte_index*8+7 downto byte_index*8);
-	              end if;
-	            end loop;
+                -- 0x14: longitud logica; la direccion fisica sigue siendo de 10 bits.
+                sample_value := slv_reg5;
+                for byte_index in 0 to (C_S_AXI_DATA_WIDTH/8-1) loop
+                    if S_AXI_WSTRB(byte_index) = '1' then
+                        sample_value(byte_index*8+7 downto byte_index*8) :=
+                            S_AXI_WDATA(byte_index*8+7 downto byte_index*8);
+                    end if;
+                end loop;
+                -- Una longitud no soportada conserva la configuracion anterior.
+                if unsigned(sample_value) = 256 or unsigned(sample_value) = 512 or
+                   unsigned(sample_value) = 1024 then
+                    slv_reg5 <= sample_value;
+                end if;
 	          when b"00110" =>
 	            for byte_index in 0 to (C_S_AXI_DATA_WIDTH/8-1) loop
 	              if ( S_AXI_WSTRB(byte_index) = '1' ) then
@@ -779,6 +787,8 @@ begin
     -- 0x10, bit 0: 0 = firma, 1 = verificacion. Reset selecciona firma.
     -- Configurar antes de start_slv y mantener durante toda la operacion.
     mode <= slv_reg4(0);
+    -- El bloque superior captura la longitud al recibir start_slv.
+    num_samples <= slv_reg5(10 downto 0);
 	start_slv <= slv_reg0(0);
 	-- User logic ends
 

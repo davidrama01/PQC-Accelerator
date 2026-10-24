@@ -6,11 +6,12 @@ use work.hawk_pkg.all;
 entity hawk_verify is
     generic (
         g_data_width  : integer := 32;
-        g_num_samples : integer := 512;
+
         g_addr_width  : integer := c_addr_width;
         g_size_fifo   : integer := c_size_fifo
     );
     port (
+        num_samples : in integer range 256 to c_max_samples := c_num_samples;
         clk         : in  std_logic;
         rst_n       : in  std_logic;
         data_in     : in  std_logic_vector(g_data_width - 1 downto 0);
@@ -68,35 +69,35 @@ architecture rtl of hawk_verify is
 
     -- g_size_fifo se conserva por compatibilidad con la interfaz existente.
     -- El numero de palabras de h0 se obtiene de sus bits y del ancho del bus.
-    constant c_h0_words : positive := g_num_samples / g_data_width;
-    signal h0     : std_logic_vector(g_num_samples - 1 downto 0);
+    signal c_h0_words : integer range 8 to 32;
+    signal h0     : std_logic_vector(c_max_samples - 1 downto 0);
     signal wr_h0  : std_logic;
-    signal cnt_h0 : integer range 0 to c_h0_words;
+    signal cnt_h0 : integer range 0 to c_max_samples / g_data_width;
 
     -- FIFO de q00: entrada de RebuildS0.
     signal wr_q00         : std_logic;
-    signal cnt_q00        : integer range 0 to g_num_samples;
+    signal cnt_q00        : integer range 0 to c_max_samples;
     signal fifo_q00_dout  : std_logic_vector(g_data_width - 1 downto 0);
     signal fifo_q00_full  : std_logic;
     signal fifo_q00_empty : std_logic;
 
     -- FIFO de q01: entrada de RebuildS0.
     signal wr_q01         : std_logic;
-    signal cnt_q01        : integer range 0 to g_num_samples;
+    signal cnt_q01        : integer range 0 to c_max_samples;
     signal fifo_q01_dout  : std_logic_vector(g_data_width - 1 downto 0);
     signal fifo_q01_full  : std_logic;
     signal fifo_q01_empty : std_logic;
 
     -- FIFO de w1: entrada de RebuildS0.
     signal wr_w1         : std_logic;
-    signal cnt_w1        : integer range 0 to g_num_samples;
+    signal cnt_w1        : integer range 0 to c_max_samples;
     signal fifo_w1_dout  : std_logic_vector(g_data_width - 1 downto 0);
     signal fifo_w1_full  : std_logic;
     signal fifo_w1_empty : std_logic;
 
     -- Lectura comun de las tres FIFO y control de RebuildS0.
     signal rd_rebuild        : std_logic;
-    signal cnt_rebuild       : integer range 0 to g_num_samples;
+    signal cnt_rebuild       : integer range 0 to c_max_samples;
     signal start_rebuild     : std_logic;
     signal rebuild_in_valid  : std_logic;
     signal done_rebuild      : std_logic;
@@ -124,11 +125,11 @@ architecture rtl of hawk_verify is
     signal fifo_norm_w0_empty : std_logic;
 
     signal wr_rebuild_w0    : std_logic;
-    signal cnt_rebuild_w0   : integer range 0 to g_num_samples;
+    signal cnt_rebuild_w0   : integer range 0 to c_max_samples;
     signal rd_polyqnorm     : std_logic;
     signal start_polyqnorm  : std_logic;
     signal polyqnorm_valid  : std_logic;
-    signal cnt_polyqnorm    : integer range 0 to g_num_samples;
+    signal cnt_polyqnorm    : integer range 0 to c_max_samples;
 
     constant C_P1 : positive := 2147473409;
     constant C_P2 : positive := 2147389441;
@@ -180,7 +181,8 @@ architecture rtl of hawk_verify is
     -- n=512: divisibilidad mediante los nueve bits bajos y division
     -- mediante desplazamiento. El umbral del paquete ya incluye el
     -- escalado de sigma_verify (13 bits fraccionarios).
-    constant C_LOGN : natural := clog2(g_num_samples);
+    signal C_LOGN : natural range 8 to 10;
+    signal threshold_value : unsigned(31 downto 0);
     signal error_threshold : std_logic;
     signal error_verify    : std_logic;
 
@@ -199,12 +201,13 @@ architecture rtl of hawk_verify is
 
     component polyqnorm
         generic (
-            g_num_samples : integer := 512;
+
             g_data_width  : integer := 32;
             g_addr_width  : integer := c_addr_width;
             g_modulus     : positive := 2147473409
         );
         port (
+            num_samples : in integer range 256 to c_max_samples := c_num_samples;
             clk            : in  std_logic;
             rst_n          : in  std_logic;
             start          : in  std_logic;
@@ -222,11 +225,12 @@ architecture rtl of hawk_verify is
 
     component rebuild_s0
         generic (
-            g_num_samples : integer := 512;
+
             g_data_width  : integer := 32;
             g_addr_width  : integer := c_addr_width
         );
         port (
+            num_samples : in integer range 256 to c_max_samples := c_num_samples;
             clk            : in  std_logic;
             rst_n          : in  std_logic;
             start          : in  std_logic;
@@ -235,7 +239,7 @@ architecture rtl of hawk_verify is
             data_q00       : in  std_logic_vector(g_data_width - 1 downto 0);
             data_q01       : in  std_logic_vector(g_data_width - 1 downto 0);
             data_w1        : in  std_logic_vector(g_data_width - 1 downto 0);
-            data_h0        : in  std_logic_vector(g_num_samples - 1 downto 0);
+            data_h0        : in  std_logic_vector(c_max_samples - 1 downto 0);
             data_out       : out std_logic_vector(g_data_width - 1 downto 0);
             data_out_valid : out std_logic;
             error          : out std_logic
@@ -244,10 +248,11 @@ architecture rtl of hawk_verify is
 
     component sym_break_w1
         generic (
-            g_num_samples : integer := 512;
+
             g_data_width  : integer := 16
         );
         port (
+            num_samples : in integer range 256 to c_max_samples := c_num_samples;
             clk       : in  std_logic;
             rst_n     : in  std_logic;
             start     : in  std_logic;
@@ -272,6 +277,9 @@ architecture rtl of hawk_verify is
     end component;
 
 begin
+    c_h0_words <= num_samples / g_data_width;
+    C_LOGN <= 8 when num_samples = 256 else 9 when num_samples = 512 else 10;
+    threshold_value <= verify_threshold(num_samples);
 
     -- Ocho ciclos de reset seguidos de ocho de recuperacion sin accesos.
     core_rst_n <= '0' when rst_n = '0' or
@@ -299,11 +307,11 @@ begin
 
     -- start tiene prioridad sobre valid en sym_break_w1: se activa al
     -- aceptar el ultimo q01, antes de que pueda llegar el primer w1.
-    start_sym_break <= '1' when wr_q01 = '1' and cnt_q01 = g_num_samples - 1 else '0';
+    start_sym_break <= '1' when wr_q01 = '1' and cnt_q01 = num_samples - 1 else '0';
 
     -- w0 se obtiene exclusivamente de RebuildS0 y se guarda para las normas.
     wr_rebuild_w0 <= '1' when core_rst_n = '1' and rebuild_out_valid = '1' and
-                             fifo_norm_w0_full = '0' and cnt_rebuild_w0 < g_num_samples else '0';
+                             fifo_norm_w0_full = '0' and cnt_rebuild_w0 < num_samples else '0';
 
     norm_p1_q00 <= signed_to_residue(fifo_norm_q00_dout, C_P1);
     norm_p1_q01 <= signed_to_residue(fifo_norm_q01_dout, C_P1);
@@ -380,7 +388,7 @@ begin
                 when WRITE_Q00 =>
                     if ack_in = '1' and fifo_q00_full = '0' and fifo_norm_q00_full = '0' then
                         wr_q00 <= '1';
-                        if cnt_q00 = g_num_samples - 1 then
+                        if cnt_q00 = num_samples - 1 then
                             next_state <= WRITE_Q01;
                         end if;
                     end if;
@@ -388,7 +396,7 @@ begin
                 when WRITE_Q01 =>
                     if ack_in = '1' and fifo_q01_full = '0' and fifo_norm_q01_full = '0' then
                         wr_q01 <= '1';
-                        if cnt_q01 = g_num_samples - 1 then
+                        if cnt_q01 = num_samples - 1 then
                             next_state <= WRITE_W1;
                         end if;
                     end if;
@@ -396,7 +404,7 @@ begin
                 when WRITE_W1 =>
                     if ack_in = '1' and fifo_w1_full = '0' and fifo_norm_w1_full = '0' then
                         wr_w1 <= '1';
-                        if cnt_w1 = g_num_samples - 1 then
+                        if cnt_w1 = num_samples - 1 then
                             next_state <= INPUTS_LOADED;
                         end if;
                     end if;
@@ -421,7 +429,7 @@ begin
 
                 when SEND_REBUILD_DATA =>
                     rebuild_in_valid <= '1';
-                    if cnt_rebuild = g_num_samples - 1 then
+                    if cnt_rebuild = num_samples - 1 then
                         next_state <= CALC_REBUILD;
                     else
                         next_state <= READ_REBUILD;
@@ -458,7 +466,7 @@ begin
                 when SEND_POLYQNORM_DATA =>
                     -- Ambas normas aceptan el mismo indice en el mismo flanco.
                     polyqnorm_valid <= '1';
-                    if cnt_polyqnorm = g_num_samples - 1 then
+                    if cnt_polyqnorm = num_samples - 1 then
                         next_state <= CALC_POLYQNORM;
                     else
                         next_state <= READ_POLYQNORM;
@@ -584,9 +592,9 @@ begin
                         -- en el mismo ciclo, usando directamente r1 y r2.
                         -- Error activo a 1; la igualdad con el umbral se acepta.
                         error_threshold <= '1';
-                        if r1 = r2 and unsigned(r1(C_LOGN - 1 downto 0)) = 0 and
+                        if r1 = r2 and (unsigned(r1) and to_unsigned(num_samples - 1, r1'length)) = 0 and
                            shift_right(unsigned(r1), C_LOGN) <=
-                           resize(unsigned(c_threshold_verify), g_data_width) then
+                           resize(threshold_value, g_data_width) then
                             error_threshold <= '0';
                         end if;
 
@@ -639,10 +647,10 @@ begin
     -- para la decision final de HawkVerify, sin detener la FSM de carga.
     sym_break_w1_inst : sym_break_w1
         generic map (
-            g_num_samples => g_num_samples,
             g_data_width  => g_data_width
         )
         port map (
+            num_samples => num_samples,
             clk       => clk,
             rst_n     => core_rst_n,
             start     => start_sym_break,
@@ -654,11 +662,11 @@ begin
 
     rebuild_s0_inst : rebuild_s0
         generic map (
-            g_num_samples => g_num_samples,
             g_data_width  => g_data_width,
             g_addr_width  => g_addr_width
         )
         port map (
+            num_samples => num_samples,
             clk            => clk,
             rst_n          => core_rst_n,
             start          => start_rebuild,
@@ -723,12 +731,12 @@ begin
 
     polyqnorm_p1_inst : polyqnorm
         generic map (
-            g_num_samples => g_num_samples,
             g_data_width  => g_data_width,
             g_addr_width  => g_addr_width,
             g_modulus     => C_P1
         )
         port map (
+            num_samples => num_samples,
             clk            => clk,
             rst_n          => core_rst_n,
             start          => start_polyqnorm,
@@ -745,12 +753,12 @@ begin
 
     polyqnorm_p2_inst : polyqnorm
         generic map (
-            g_num_samples => g_num_samples,
             g_data_width  => g_data_width,
             g_addr_width  => g_addr_width,
             g_modulus     => C_P2
         )
         port map (
+            num_samples => num_samples,
             clk            => clk,
             rst_n          => core_rst_n,
             start          => start_polyqnorm,

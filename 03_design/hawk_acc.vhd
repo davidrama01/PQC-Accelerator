@@ -11,6 +11,7 @@ entity hawk_acc is
         clk       : in  std_logic;
         rst_n     : in  std_logic;
         mode      : in  std_logic;
+        num_samples : in integer range 256 to c_max_samples := 512;
         data_slv  : in  std_logic_vector(C_DATA_WIDTH - 1 downto 0);
         data_mst  : out std_logic_vector(C_DATA_WIDTH - 1 downto 0);
         ack_slv   : in  std_logic;
@@ -29,11 +30,12 @@ architecture rtl of hawk_acc is
     component hawk_sign
         generic (
             g_data_width  : integer := 32;
-            g_num_samples : integer := 512;
+
             g_addr_width  : integer := c_addr_width;
             g_size_fifo   : integer := c_size_fifo
         );
         port (
+            num_samples : in integer range 256 to c_max_samples := c_num_samples;
             clk       : in  std_logic;
             rst_n     : in  std_logic;
             data_in   : in  std_logic_vector(g_data_width - 1 downto 0);
@@ -49,11 +51,12 @@ architecture rtl of hawk_acc is
     component hawk_verify
         generic (
             g_data_width  : integer := 32;
-            g_num_samples : integer := 512;
+
             g_addr_width  : integer := c_addr_width;
             g_size_fifo   : integer := c_size_fifo
         );
         port (
+            num_samples : in integer range 256 to c_max_samples := c_num_samples;
             clk         : in  std_logic;
             rst_n       : in  std_logic;
             data_in     : in  std_logic_vector(g_data_width - 1 downto 0);
@@ -94,11 +97,11 @@ begin
     hawk_sign_inst : hawk_sign
         generic map (
             g_data_width  => C_DATA_WIDTH,
-            g_num_samples => c_num_samples,
             g_addr_width  => c_addr_width,
             g_size_fifo   => c_size_fifo
         )
         port map (
+            num_samples => num_samples,
             clk       => clk,
             rst_n     => rst_n,
             data_in   => data_slv,
@@ -113,11 +116,11 @@ begin
     hawk_verify_inst : hawk_verify
         generic map (
             g_data_width  => C_DATA_WIDTH,
-            g_num_samples => c_num_samples,
             g_addr_width  => c_addr_width,
             g_size_fifo   => c_size_fifo
         )
         port map (
+            num_samples => num_samples,
             clk         => clk,
             rst_n       => rst_n,
             data_in     => data_slv,

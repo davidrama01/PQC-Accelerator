@@ -5,12 +5,13 @@ use work.hawk_pkg.all;
 
 entity ntt is
     generic (
-        g_num_samples : integer := 512;
+
         g_data_width  : integer := 32;
         g_addr_width  : integer := c_addr_width;
         g_modulus     : positive := 2147473409 -- Solo P1 o P2; selecciona tambien la ROM.
     );
     port (
+        num_samples : in integer range 256 to c_max_samples := c_num_samples;
         clk            : in std_logic;
         rst_n          : in std_logic;
         start          : in std_logic;
@@ -26,7 +27,7 @@ architecture rtl of ntt is
 
     ---------------------------------------------------------------------------
     -- NTT directa del Algoritmo 21, calculada sobre la propia RAM.
-    -- Para n = g_num_samples y p = g_modulus:
+    -- Para n = c_max_samples y p = g_modulus:
     --   1. Carga los n coeficientes a[0], ..., a[n-1] en orden consecutivo.
     --   2. Recorre etapas con m = 1, 2, ..., n/2 y t = n/(2*m).
     --      Cada etapa contiene m grupos de t mariposas, n/2 en total.
@@ -94,7 +95,7 @@ architecture rtl of ntt is
     signal data_b   : std_logic_vector(g_data_width - 1 downto 0);
     signal ram_dina : std_logic_vector(g_data_width - 1 downto 0);
 
-    signal ntt_out_count      : integer range 0 to g_num_samples - 1 := 0;
+    signal ntt_out_count      : integer range 0 to c_max_samples - 1 := 0;
     signal data_out_valid_reg : std_logic := '0';
     signal data_out_reg       : std_logic_vector(g_data_width - 1 downto 0);
 
@@ -199,7 +200,7 @@ begin
                 if data_in_valid = '1' then
                     ram_ntt_ena <= '1';
                     ram_ntt_wea <= (others => '1');
-                    if unsigned(ram_addra) = g_num_samples - 1 then
+                    if unsigned(ram_addra) = num_samples - 1 then
                         next_state <= ST_RD_GAMMA;
                     end if;
                 end if;
@@ -254,7 +255,7 @@ begin
                 ram_ntt_enb <= '1';
                 ram_ntt_web <= (others => '1');
                 if j = t - 1 then
-                    if i = m - 1 and m = g_num_samples / 2 then
+                    if i = m - 1 and m = num_samples / 2 then
                         next_state <= ST_RD_NTT_INIT;
                     else
                         next_state <= ST_RD_GAMMA;
@@ -277,7 +278,7 @@ begin
             when ST_RD_NTT_CAPTURE =>
                 -- Una vez cebada la BRAM: una salida por ciclo.
                 ram_ntt_ena <= '1';
-                if ntt_out_count = g_num_samples - 1 then
+                if ntt_out_count = num_samples - 1 then
                     next_state <= ST_DONE;
                 end if;
 
@@ -324,7 +325,7 @@ begin
                         ram_addra <= (others => '0');
                         ram_addrb <= (others => '0');
                         rom_enable <= '0';
-                        t <= to_unsigned(g_num_samples / 2, t'length);
+                        t <= to_unsigned(num_samples / 2, t'length);
                         m <= to_unsigned(1, m'length);
                         i <= (others => '0');
                         j <= (others => '0');
@@ -332,7 +333,7 @@ begin
 
                     when ST_INIT_RAM =>
                         if data_in_valid = '1' then
-                            if unsigned(ram_addra) = g_num_samples - 1 then
+                            if unsigned(ram_addra) = num_samples - 1 then
                                 ram_addra <= (others => '0');
                             else
                                 ram_addra <= std_logic_vector(unsigned(ram_addra) + 1);
@@ -400,7 +401,7 @@ begin
                             j <= (others => '0');
                             if i = m - 1 then
                                 i <= (others => '0');
-                                if m < g_num_samples / 2 then
+                                if m < num_samples / 2 then
                                     m <= shift_left(m, 1);
                                     t <= shift_right(t, 1);
                                 end if;
@@ -429,9 +430,9 @@ begin
                         -- las ultimas palabras ya estan en la tuberia.
                         data_out_reg <= ram_douta;
                         data_out_valid_reg <= '1';
-                        if ntt_out_count < g_num_samples - 1 then
+                        if ntt_out_count < num_samples - 1 then
                             ntt_out_count <= ntt_out_count + 1;
-                            if ntt_out_count < g_num_samples - 3 then
+                            if ntt_out_count < num_samples - 3 then
                                 ram_addra <= std_logic_vector(to_unsigned(ntt_out_count + 3, ram_addra'length));
                             end if;
                         end if;

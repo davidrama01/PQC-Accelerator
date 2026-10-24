@@ -77,6 +77,7 @@ architecture arch_imp of hawk_acc_v1_0 is
         verify_error 	: in std_logic;
         verify_done  	: in std_logic;
         mode 			: out std_logic;
+        num_samples : out std_logic_vector(10 downto 0);
 		done_mst 		: in std_logic;
 		start_mst 		: in std_logic;
 		start_slv 		: out std_logic;
@@ -152,6 +153,7 @@ architecture arch_imp of hawk_acc_v1_0 is
 			clk         : in  std_logic;
 			rst_n       : in  std_logic;
             mode        : in  std_logic;
+            num_samples : in integer range 256 to 1024 := 512;
 			data_slv    : in  std_logic_vector(C_DATA_WIDTH-1 downto 0);
 			data_mst    : out std_logic_vector(C_DATA_WIDTH-1 downto 0);
 			ack_slv     : in  std_logic;
@@ -168,6 +170,9 @@ architecture arch_imp of hawk_acc_v1_0 is
 	signal verify_error : std_logic;
 	signal verify_done  : std_logic;
     signal mode 		: std_logic;
+    -- Longitud logica; capacidad fisica maxima de 1024 muestras.
+    signal num_samples : std_logic_vector(10 downto 0);
+    signal operation_samples : integer range 256 to 1024 := 512;
 	signal start_slv 	: std_logic;
 	signal start_mst 	: std_logic;
 	signal done_slv 	: std_logic;
@@ -183,6 +188,23 @@ architecture arch_imp of hawk_acc_v1_0 is
 
 begin
 
+    -- Captura la longitud al iniciar la entrada; escribir 0x14 durante el
+    -- calculo configura la siguiente operacion y no cambia la actual.
+    process (m00_axis_aclk)
+    begin
+        if rising_edge(m00_axis_aclk) then
+            if m00_axis_aresetn = '0' then
+                operation_samples <= 512;
+            elsif start_slv = '1' then
+                case num_samples is
+                    when "00100000000" => operation_samples <= 256;
+                    when "10000000000" => operation_samples <= 1024;
+                    when others => operation_samples <= 512;
+                end case;
+            end if;
+        end if;
+    end process;
+
 -- Instantiation of Axi Bus Interface S00_AXI
 hawk_acc_v1_0_S00_AXI_inst : hawk_acc_v1_0_S00_AXI
 	generic map (
@@ -194,6 +216,7 @@ hawk_acc_v1_0_S00_AXI_inst : hawk_acc_v1_0_S00_AXI
         verify_error 	=> verify_error,
         verify_done  	=> verify_done,
         mode 			=> mode,
+        num_samples => num_samples,
 		done_mst 		=> done_mst,
 		start_slv 		=> start_slv,
 		start_mst 		=> start_mst,
@@ -269,6 +292,7 @@ hawk_acc_inst : hawk_acc
 		clk         	=> m00_axis_aclk,
 		rst_n       	=> m00_axis_aresetn,
         mode        	=> mode,
+        num_samples => operation_samples,
 		data_slv    	=> data_slv,
 		data_mst    	=> data_mst,
 		ack_slv     	=> ack_slv,

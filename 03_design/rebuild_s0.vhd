@@ -6,11 +6,12 @@ use work.hawk_pkg.ALL;
 
 entity rebuild_s0 is
     generic (
-        g_num_samples : integer := 512;
+
         g_data_width  : integer := 32;
         g_addr_width  : integer := c_addr_width
     );
     port (
+        num_samples : in integer range 256 to c_max_samples := c_num_samples;
         clk            : in std_logic;
         rst_n          : in std_logic;
         start          : in std_logic;
@@ -19,7 +20,7 @@ entity rebuild_s0 is
         data_q00       : in std_logic_vector(g_data_width - 1 downto 0);
         data_q01       : in std_logic_vector(g_data_width - 1 downto 0);
         data_w1        : in std_logic_vector(g_data_width - 1 downto 0);
-        data_h0        : in std_logic_vector(g_num_samples -1 downto 0);
+        data_h0        : in std_logic_vector(c_max_samples -1 downto 0);
         data_out       : out std_logic_vector(g_data_width - 1 downto 0);
         data_out_valid : out std_logic;
         error          : out std_logic
@@ -83,14 +84,15 @@ architecture rtl of rebuild_s0 is
     -- Escalado de las entradas
     ---------------------------------------------------------------------------
 
-    constant c_bits_samples : natural := clog2(g_num_samples);
-    constant c_alpha_shift  : integer range 0 to 32 := c_q00_shift + 1 - c_bits_samples;
+    signal c_bits_samples : natural range 8 to 10;
+    signal c_alpha_shift : integer range 0 to 32;
+    signal s0_shift : integer range 0 to 32;
 
     signal q00           : std_logic_vector(g_data_width - 1 downto 0);
     signal q01           : std_logic_vector(g_data_width - 1 downto 0);
     signal w1            : std_logic_vector(g_data_width - 1 downto 0);
     signal rescale_valid : std_logic;
-    signal rescale_cnt   : integer range 0 to 1024;
+    signal rescale_cnt   : integer range 0 to c_max_samples;
 
     signal error_flag : std_logic;
     signal alpha      : signed(g_data_width - 1 downto 0);
@@ -181,7 +183,7 @@ architecture rtl of rebuild_s0 is
     signal ifft_data_in     : std_logic_vector(g_data_width - 1 downto 0);
     signal ifft_data_out    : std_logic_vector(g_data_width - 1 downto 0);
 
-    signal addr_count : integer range 0 to g_num_samples - 1 := 0;
+    signal addr_count : integer range 0 to c_max_samples - 1 := 0;
 
     signal fifo_wr_en : std_logic;
     signal fifo_rd_en : std_logic;
@@ -207,11 +209,12 @@ architecture rtl of rebuild_s0 is
 
     component fft
         generic (
-            g_num_samples : integer := 512;
+
             g_data_width  : integer := 32;
             g_addr_width  : integer := c_addr_width
         );
         port (
+            num_samples : in integer range 256 to c_max_samples := c_num_samples;
             clk            : in std_logic;
             rst_n          : in std_logic;
             start          : in std_logic;
@@ -225,11 +228,12 @@ architecture rtl of rebuild_s0 is
 
     component ifft
         generic (
-            g_num_samples : integer := 512;
+
             g_data_width  : integer := 32;
             g_addr_width  : integer := c_addr_width
         );
         port (
+            num_samples : in integer range 256 to c_max_samples := c_num_samples;
             clk            : in std_logic;
             rst_n          : in std_logic;
             start          : in std_logic;
@@ -273,7 +277,9 @@ architecture rtl of rebuild_s0 is
     end component;
 
 begin
-
+    c_bits_samples <= 8 when num_samples = 256 else 9 when num_samples = 512 else 10;
+    c_alpha_shift <= c_q00_shift + 1 - c_bits_samples;
+    s0_shift <= 1 + c_w1_shift + c_q01_shift - c_bits_samples - c_q00_shift;
     ---------------------------------------------------------------------------
     -- Control global
     ---------------------------------------------------------------------------
@@ -328,7 +334,7 @@ begin
                 if data_in_valid = '1' then
                     if rescale_cnt = 0 and signed(data_q00) < 0 then
                         next_state <= ST_ERROR;
-                    elsif rescale_cnt = g_num_samples - 1 then
+                    elsif rescale_cnt = num_samples - 1 then
                         next_state <= ST_WR_FFT;
                     end if;
                 end if;
@@ -354,9 +360,9 @@ begin
                 if fft_q00_valid = '1' and
                 fft_q01_valid = '1' and
                 fft_w1_valid  = '1' and
-                unsigned(q00_addra) = g_num_samples - 1 and
-                unsigned(q01_addra) = g_num_samples - 1 and
-                unsigned(w1_addra)  = g_num_samples - 1 then
+                unsigned(q00_addra) = num_samples - 1 and
+                unsigned(q01_addra) = num_samples - 1 and
+                unsigned(w1_addra)  = num_samples - 1 then
                     next_state <= ST_COMMIT_FFT;
                 end if;
 
@@ -419,7 +425,7 @@ begin
                 q01_enb <= '1';
                 q01_wea <= (others => '1');
                 q01_web <= (others => '1');
-                if u = g_num_samples/2 - 1 then
+                if u = num_samples/2 - 1 then
                     next_state <= ST_RD_Q01;
                 else
                     next_state <= ST_RD_FFT;
@@ -441,7 +447,7 @@ begin
 
             when ST_RD_Q01_CAPTURE =>
                 -- La IFFT acepta huecos: solo se activa valid al capturar dout.
-                if addr_count = g_num_samples - 1 then
+                if addr_count = num_samples - 1 then
                     next_state <= ST_WAIT_IFFT;
                 else
                     next_state <= ST_RD_Q01;
@@ -476,7 +482,7 @@ begin
                 if z < to_signed(-(2**c_high_s0), z'length) or
                    z >= to_signed(2**c_high_s0, z'length) then
                     next_state <= ST_ERROR;
-                elsif u = g_num_samples - 1 then
+                elsif u = num_samples - 1 then
                     next_state <= ST_DONE;
                 else
                     next_state <= ST_RD_FIFO;
@@ -581,7 +587,7 @@ begin
                                 shift_left(signed(data_q00), c_q00_shift));
                         end if;
 
-                        if rescale_cnt = g_num_samples - 1 then
+                        if rescale_cnt = num_samples - 1 then
                             rescale_cnt <= 0;
                         else
                             rescale_cnt <= rescale_cnt + 1;
@@ -590,7 +596,7 @@ begin
 
                 when ST_WR_FFT =>
                     if fft_q00_valid = '1' then
-                        if unsigned(q00_addra) = g_num_samples - 1 then
+                        if unsigned(q00_addra) = num_samples - 1 then
                             q00_addra <= (others => '0');
                         else
                             q00_addra <= std_logic_vector(unsigned(q00_addra) + 1);
@@ -598,7 +604,7 @@ begin
                     end if;
 
                     if fft_q01_valid = '1' then
-                        if unsigned(q01_addra) = g_num_samples - 1 then
+                        if unsigned(q01_addra) = num_samples - 1 then
                             q01_addra <= (others => '0');
                         else
                             q01_addra <= std_logic_vector(unsigned(q01_addra) + 1);
@@ -606,7 +612,7 @@ begin
                     end if;
 
                     if fft_w1_valid = '1' then
-                        if unsigned(w1_addra) = g_num_samples - 1 then
+                        if unsigned(w1_addra) = num_samples - 1 then
                             w1_addra <= (others => '0');
                         else
                             w1_addra <= std_logic_vector(unsigned(w1_addra) + 1);
@@ -618,12 +624,12 @@ begin
 
                 when ST_RD_FFT =>
                     q00_addra <= std_logic_vector(resize(u, q00_addra'length));
-                
+
                     q01_addra <= std_logic_vector(resize(u, q01_addra'length));
-                    q01_addrb <= std_logic_vector(resize(u + to_unsigned(g_num_samples / 2, u'length), q01_addrb'length));
+                    q01_addrb <= std_logic_vector(resize(u + to_unsigned(num_samples / 2, u'length), q01_addrb'length));
 
                     w1_addra <= std_logic_vector(resize(u, w1_addra'length));
-                    w1_addrb <= std_logic_vector(resize(u + to_unsigned(g_num_samples / 2, u'length), w1_addrb'length));
+                    w1_addrb <= std_logic_vector(resize(u + to_unsigned(num_samples / 2, u'length), w1_addrb'length));
 
                 when ST_WAIT_FFT =>
                     null;
@@ -652,7 +658,7 @@ begin
                     -- truncan hacia cero, equivalente a floor(abs(X)/v) y a
                     -- restaurar despues el signo indicado por el algoritmo.
                     q01_addra   <= std_logic_vector(resize(u, q01_addra'length));
-                    q01_addrb   <= std_logic_vector(resize(u + to_unsigned(g_num_samples / 2, u'length), q01_addrb'length));
+                    q01_addrb   <= std_logic_vector(resize(u + to_unsigned(num_samples / 2, u'length), q01_addrb'length));
 
                     if v <= 0 then
                         error_flag <= '1';
@@ -670,13 +676,13 @@ begin
                     end if;
 
                 when ST_COMMIT_Q01 =>
-                    if to_integer(u) = g_num_samples/2 - 1 then
+                    if to_integer(u) = num_samples/2 - 1 then
                         u <= (others => '0');
                         addr_count <= 0;
                     else
                         u <= u + 1;
                     end if;
-                
+
                 when ST_RD_Q01 =>
                     -- Lectura no canalizada: la IFFT recibe un valid por cada
                     -- coeficiente realmente capturado.
@@ -693,13 +699,13 @@ begin
                     ifft_data_in    <= q01_douta;
                     ifft_valid_in   <= '1';
 
-                    if addr_count < g_num_samples - 1 then
+                    if addr_count < num_samples - 1 then
                         addr_count <= addr_count + 1;
                     end if;
 
                 when ST_WAIT_IFFT =>
                     null;
-                
+
                 when ST_RD_FIFO =>
                     if fifo_empty = '0' then
                         fifo_rd_en <= '1';
@@ -713,7 +719,7 @@ begin
                     -- v = c_s0*h0[u] + t[u], con c_s0=2^c_s0_shift.
                     if data_h0(to_integer(u)) = '1' then
                         v <= resize(signed(fifo_dout), v'length)
-                           + shift_left(to_signed(1, v'length), c_s0_shift);
+                           + shift_left(to_signed(1, v'length), s0_shift);
                     else
                         v <= resize(signed(fifo_dout), v'length);
                     end if;
@@ -742,7 +748,7 @@ begin
                         w0_valid <= '1';
                     end if;
 
-                    if u < g_num_samples - 1 then
+                    if u < num_samples - 1 then
                         u <= u + 1;
                     end if;
 
@@ -790,11 +796,11 @@ begin
 
     fft_q00_inst : fft 
         generic map (
-            g_num_samples   =>  g_num_samples,
             g_data_width    =>  g_data_width,
             g_addr_width    =>  g_addr_width
             )
         port map (
+            num_samples => num_samples,
             clk             =>  clk,
             rst_n           =>  core_rst_n,
             start           =>  start,
@@ -807,11 +813,11 @@ begin
 
     fft_q01_inst : fft 
         generic map (
-            g_num_samples   =>  g_num_samples,
             g_data_width    =>  g_data_width,
             g_addr_width    =>  g_addr_width
             )
         port map (
+            num_samples => num_samples,
             clk             =>  clk,
             rst_n           =>  core_rst_n,
             start           =>  start,
@@ -824,11 +830,11 @@ begin
 
     fft_w1_inst : fft 
         generic map (
-            g_num_samples   =>  g_num_samples,
             g_data_width    =>  g_data_width,
             g_addr_width    =>  g_addr_width
             )
         port map (
+            num_samples => num_samples,
             clk             =>  clk,
             rst_n           =>  core_rst_n,
             start           =>  start,
@@ -841,11 +847,11 @@ begin
 
     ifft_q01_inst : ifft 
         generic map (
-            g_num_samples   =>  g_num_samples,
             g_data_width    =>  g_data_width,
             g_addr_width    =>  g_addr_width
             )
         port map (
+            num_samples => num_samples,
             clk             =>  clk,
             rst_n           =>  core_rst_n,
             start           =>  start,

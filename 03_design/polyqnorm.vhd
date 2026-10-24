@@ -5,12 +5,13 @@ use work.hawk_pkg.all;
 
 entity polyqnorm is
     generic (
-        g_num_samples : integer := 512;
+
         g_data_width  : integer := 32;
         g_addr_width  : integer := c_addr_width;
         g_modulus     : positive := 2147473409
     );
     port (
+        num_samples : in integer range 256 to c_max_samples := c_num_samples;
         clk            : in std_logic;
         rst_n          : in std_logic;
         start          : in std_logic;
@@ -98,9 +99,9 @@ architecture rtl of polyqnorm is
     signal core_rst_n    : std_logic;
     signal core_start    : std_logic;
     signal core_valid    : std_logic;
-    signal load_count    : natural range 0 to g_num_samples - 1;
-    signal ntt_count     : natural range 0 to g_num_samples - 1;
-    signal u             : natural range 0 to g_num_samples - 1;
+    signal load_count    : natural range 0 to c_max_samples - 1;
+    signal ntt_count     : natural range 0 to c_max_samples - 1;
+    signal u             : natural range 0 to c_max_samples - 1;
     signal ntt_valid     : std_logic_vector(3 downto 0);
     signal input_invalid : std_logic;
 
@@ -247,7 +248,7 @@ begin
                 if data_in_valid = '1' then
                     if input_invalid = '1' then
                         next_state <= ST_ERROR;
-                    elsif load_count = g_num_samples - 1 then
+                    elsif load_count = num_samples - 1 then
                         next_state <= ST_WR_NTT;
                     end if;
                 end if;
@@ -262,7 +263,7 @@ begin
                     w0_wea <= (others => '1');
                     w1_ena <= '1';
                     w1_wea <= (others => '1');
-                    if ntt_count = g_num_samples - 1 then
+                    if ntt_count = num_samples - 1 then
                         next_state <= ST_COMMIT_NTT;
                     end if;
                 elsif ntt_valid /= "0000" then
@@ -334,7 +335,7 @@ begin
                 q01_wea <= (others => '1');
                 w0_ena <= '1';
                 w0_wea <= (others => '1');
-                if u = g_num_samples - 1 then
+                if u = num_samples - 1 then
                     next_state <= ST_RD_C;
                 else
                     next_state <= ST_RD_NTT;
@@ -377,7 +378,7 @@ begin
                 next_state <= ST_ACCUMULATE;
 
             when ST_ACCUMULATE =>
-                if u = g_num_samples - 1 then
+                if u = num_samples - 1 then
                     next_state <= ST_DONE;
                 else
                     next_state <= ST_RD_C;
@@ -434,12 +435,12 @@ begin
                         end if;
 
                     when ST_LOAD =>
-                        if data_in_valid = '1' and load_count < g_num_samples - 1 then
+                        if data_in_valid = '1' and load_count < num_samples - 1 then
                             load_count <= load_count + 1;
                         end if;
 
                     when ST_WR_NTT =>
-                        if ntt_valid = "1111" and ntt_count < g_num_samples - 1 then
+                        if ntt_valid = "1111" and ntt_count < num_samples - 1 then
                             ntt_count <= ntt_count + 1;
                             addr_a <= std_logic_vector(to_unsigned(ntt_count + 1, g_addr_width));
                         end if;
@@ -484,7 +485,7 @@ begin
                         e <= add_mod(w0_value, reduced);
 
                     when ST_COMMIT_E =>
-                        if u = g_num_samples - 1 then
+                        if u = num_samples - 1 then
                             u <= 0;
                         else
                             u <= u + 1;
@@ -492,7 +493,7 @@ begin
 
                     when ST_RD_C =>
                         addr_a <= std_logic_vector(to_unsigned(u, g_addr_width));
-                        addr_b <= std_logic_vector(to_unsigned(g_num_samples - 1 - u, g_addr_width));
+                        addr_b <= std_logic_vector(to_unsigned(num_samples - 1 - u, g_addr_width));
 
                     when ST_CAPTURE_C =>
                         q00_value <= unsigned(q00_douta);
@@ -521,7 +522,7 @@ begin
 
                     when ST_ACCUMULATE =>
                         r <= add_mod(r, add_mod(term_a, term_b));
-                        if u < g_num_samples - 1 then
+                        if u < num_samples - 1 then
                             u <= u + 1;
                         end if;
 
@@ -545,12 +546,12 @@ begin
 
     ntt_q00_inst : entity work.ntt(rtl)
         generic map (
-            g_num_samples => g_num_samples,
             g_data_width  => g_data_width,
             g_addr_width  => g_addr_width,
             g_modulus     => g_modulus
         )
         port map (
+            num_samples => num_samples,
             clk            => clk,
             rst_n          => core_rst_n,
             start          => core_start,
@@ -582,12 +583,12 @@ begin
 
     ntt_q01_inst : entity work.ntt(rtl)
         generic map (
-            g_num_samples => g_num_samples,
             g_data_width  => g_data_width,
             g_addr_width  => g_addr_width,
             g_modulus     => g_modulus
         )
         port map (
+            num_samples => num_samples,
             clk            => clk,
             rst_n          => core_rst_n,
             start          => core_start,
@@ -619,12 +620,12 @@ begin
 
     ntt_w0_inst : entity work.ntt(rtl)
         generic map (
-            g_num_samples => g_num_samples,
             g_data_width  => g_data_width,
             g_addr_width  => g_addr_width,
             g_modulus     => g_modulus
         )
         port map (
+            num_samples => num_samples,
             clk            => clk,
             rst_n          => core_rst_n,
             start          => core_start,
@@ -656,12 +657,12 @@ begin
 
     ntt_w1_inst : entity work.ntt(rtl)
         generic map (
-            g_num_samples => g_num_samples,
             g_data_width  => g_data_width,
             g_addr_width  => g_addr_width,
             g_modulus     => g_modulus
         )
         port map (
+            num_samples => num_samples,
             clk            => clk,
             rst_n          => core_rst_n,
             start          => core_start,

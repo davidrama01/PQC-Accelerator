@@ -1,27 +1,26 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
+use work.hawk_pkg.all;
 
 entity poly_mul_mod2 is
-    generic (
-        g_num_samples : integer := 512
-    );
     port (
+        num_samples : in integer range 1 to c_max_samples := c_num_samples;
         clk : in std_logic;
         rst_n : in std_logic;
         start : in std_logic;
         done : out std_logic;
-        data_a : in std_logic_vector(g_num_samples - 1 downto 0);
-        data_b : in std_logic_vector(g_num_samples - 1 downto 0);
-        result : out std_logic_vector(g_num_samples - 1 downto 0)
+        data_a : in std_logic_vector(c_max_samples - 1 downto 0);
+        data_b : in std_logic_vector(c_max_samples - 1 downto 0);
+        result : out std_logic_vector(c_max_samples - 1 downto 0)
     );
 end entity poly_mul_mod2;
 
 architecture rtl of poly_mul_mod2 is
 
-signal temp_result : std_logic_vector(g_num_samples - 1 downto 0);
-signal i : integer range 0 to g_num_samples;
-signal j : integer range 0 to g_num_samples;
+signal temp_result : std_logic_vector(c_max_samples - 1 downto 0);
+signal i : integer range 0 to c_max_samples;
+signal j : integer range 0 to c_max_samples;
 signal acc : std_logic;
 signal done_d : std_logic;
 signal enable : std_logic;
@@ -55,14 +54,14 @@ begin
                 enable <= '1';
                 temp_result <= (others => '0');
             elsif enable = '1' then
-                if i < g_num_samples then
+                if i < num_samples then
                     if (i - j) >= 0 then
                         bit_product := data_a(j) and data_b(i - j);
                     else
-                        bit_product := data_a(j) and data_b(i - j + g_num_samples);
+                        bit_product := data_a(j) and data_b(i - j + num_samples);
                     end if;
 
-                    if j < g_num_samples - 1 then
+                    if j < num_samples - 1 then
                         acc <= acc xor bit_product;
                         j <= j + 1;
                     else
@@ -71,7 +70,7 @@ begin
                         j <= 0;
                         i <= i + 1;
 
-                        if i >= g_num_samples - 1 then
+                        if i >= num_samples - 1 then
                             done_d <= '1';
                             i <= 0;
                             enable <= '0';

@@ -5,12 +5,13 @@ use work.hawk_pkg.all;
 
 entity intt is
     generic (
-        g_num_samples : integer := 512;
+
         g_data_width  : integer := 32;
         g_addr_width  : integer := c_addr_width;
         g_modulus     : positive := 2147473409 -- Solo P1 o P2; selecciona tambien la ROM.
     );
     port (
+        num_samples : in integer range 256 to c_max_samples := c_num_samples;
         clk            : in std_logic;
         rst_n          : in std_logic;
         start          : in std_logic;
@@ -90,7 +91,7 @@ architecture rtl of intt is
     signal data_b   : std_logic_vector(g_data_width - 1 downto 0);
     signal ram_dina : std_logic_vector(g_data_width - 1 downto 0);
 
-    signal intt_out_count      : integer range 0 to g_num_samples - 1 := 0;
+    signal intt_out_count      : integer range 0 to c_max_samples - 1 := 0;
     signal data_out_valid_reg : std_logic := '0';
     signal data_out_reg       : std_logic_vector(g_data_width - 1 downto 0);
 
@@ -209,7 +210,7 @@ begin
                 if data_in_valid = '1' then
                     ram_intt_ena <= '1';
                     ram_intt_wea <= (others => '1');
-                    if unsigned(ram_addra) = g_num_samples - 1 then
+                    if unsigned(ram_addra) = num_samples - 1 then
                         next_state <= ST_RD_GAMMA;
                     end if;
                 end if;
@@ -290,7 +291,7 @@ begin
             when ST_RD_INTT_CAPTURE =>
                 -- Una vez cebada la BRAM: una salida por ciclo.
                 ram_intt_ena <= '1';
-                if intt_out_count = g_num_samples - 1 then
+                if intt_out_count = num_samples - 1 then
                     next_state <= ST_DONE;
                 end if;
 
@@ -340,14 +341,14 @@ begin
                         ram_addrb <= (others => '0');
                         rom_enable <= '0';
                         t <= to_unsigned(1, t'length);
-                        m <= to_unsigned(g_num_samples / 2, m'length);
+                        m <= to_unsigned(num_samples / 2, m'length);
                         i <= (others => '0');
                         j <= (others => '0');
                         intt_out_count <= 0;
 
                     when ST_INIT_RAM =>
                         if data_in_valid = '1' then
-                            if unsigned(ram_addra) = g_num_samples - 1 then
+                            if unsigned(ram_addra) = num_samples - 1 then
                                 ram_addra <= (others => '0');
                             else
                                 ram_addra <= std_logic_vector(unsigned(ram_addra) + 1);
@@ -444,9 +445,9 @@ begin
                         -- las ultimas palabras ya estan en la tuberia.
                         data_out_reg <= ram_douta;
                         data_out_valid_reg <= '1';
-                        if intt_out_count < g_num_samples - 1 then
+                        if intt_out_count < num_samples - 1 then
                             intt_out_count <= intt_out_count + 1;
-                            if intt_out_count < g_num_samples - 3 then
+                            if intt_out_count < num_samples - 3 then
                                 ram_addra <= std_logic_vector(to_unsigned(intt_out_count + 3, ram_addra'length));
                             end if;
                         end if;

@@ -6,11 +6,12 @@ use work.hawk_pkg.all;
 entity hawk_sign is
 	generic (
 		g_data_width : integer := 32;
-        g_num_samples : integer := 512;
+
         g_addr_width : integer := c_addr_width;
         g_size_fifo : integer := 512
 	);
 	port (
+        num_samples : in integer range 256 to c_max_samples := c_num_samples;
 		clk      : in  std_logic;
 		rst_n    : in  std_logic;
 		data_in  : in  std_logic_vector(g_data_width-1 downto 0);
@@ -52,22 +53,22 @@ architecture rtl of hawk_sign is
     signal wr_x0 : std_logic;
     signal wr_x1 : std_logic;
     signal wr_w1 : std_logic;
-    signal cnt_Fmod2 : integer range 0 to c_size_fifo+1;
-    signal cnt_Gmod2 : integer range 0 to c_size_fifo+1;
-    signal cnt_h0 : integer range 0 to c_size_fifo+1;
-    signal cnt_h1 : integer range 0 to c_size_fifo+1;
-    signal cnt_f : integer range 0 to c_num_samples+1;
-    signal cnt_g : integer range 0 to c_num_samples+1;
-    signal cnt_t : integer range 0 to 2*c_size_fifo+1;
-    signal cnt_x0 : integer range 0 to c_num_samples+1;
-    signal cnt_x1 : integer range 0 to c_num_samples+1;
-    signal cnt_w1 : integer range 0 to c_num_samples+1;
-    signal h0 : std_logic_vector(c_num_samples-1 downto 0);
-    signal h1 : std_logic_vector(c_num_samples-1 downto 0);
-    signal Fmod2 : std_logic_vector(c_num_samples-1 downto 0);
-    signal Gmod2 : std_logic_vector(c_num_samples-1 downto 0);
-    signal f_mod2 : std_logic_vector(c_num_samples-1 downto 0);
-    signal g_mod2 : std_logic_vector(c_num_samples-1 downto 0);
+    signal cnt_Fmod2 : integer range 0 to (c_max_samples / g_data_width)+1;
+    signal cnt_Gmod2 : integer range 0 to (c_max_samples / g_data_width)+1;
+    signal cnt_h0 : integer range 0 to (c_max_samples / g_data_width)+1;
+    signal cnt_h1 : integer range 0 to (c_max_samples / g_data_width)+1;
+    signal cnt_f : integer range 0 to c_max_samples+1;
+    signal cnt_g : integer range 0 to c_max_samples+1;
+    signal cnt_t : integer range 0 to 2*(c_max_samples / g_data_width)+1;
+    signal cnt_x0 : integer range 0 to c_max_samples+1;
+    signal cnt_x1 : integer range 0 to c_max_samples+1;
+    signal cnt_w1 : integer range 0 to c_max_samples+1;
+    signal h0 : std_logic_vector(c_max_samples-1 downto 0);
+    signal h1 : std_logic_vector(c_max_samples-1 downto 0);
+    signal Fmod2 : std_logic_vector(c_max_samples-1 downto 0);
+    signal Gmod2 : std_logic_vector(c_max_samples-1 downto 0);
+    signal f_mod2 : std_logic_vector(c_max_samples-1 downto 0);
+    signal g_mod2 : std_logic_vector(c_max_samples-1 downto 0);
     signal wea_f : std_logic_vector(0 downto 0);
     signal wea_g : std_logic_vector(0 downto 0);
     signal wea_x0 : std_logic_vector(0 downto 0);
@@ -86,8 +87,8 @@ architecture rtl of hawk_sign is
     signal done_w1 : std_logic;
     signal done_s1 : std_logic;
     signal ready_s1 : std_logic;
-    signal t0 : std_logic_vector(c_num_samples-1 downto 0);
-    signal t1 : std_logic_vector(c_num_samples-1 downto 0);
+    signal t0 : std_logic_vector(c_max_samples-1 downto 0);
+    signal t1 : std_logic_vector(c_max_samples-1 downto 0);
     signal w1 : std_logic_vector(g_data_width-1 downto 0);
     signal s1 : std_logic_vector(g_data_width-1 downto 0);
     signal last_word_int : std_logic;
@@ -166,29 +167,28 @@ architecture rtl of hawk_sign is
 	end component;
 
     component calculate_t
-        generic (
-            g_num_samples : integer := 512
-        );
         port (
+            num_samples : in integer range 256 to c_max_samples := c_num_samples;
             clk         : in std_logic;
             rst_n       : in std_logic;
             start       : in std_logic;
             done        : out std_logic;
-            h0          : in std_logic_vector(g_num_samples - 1 downto 0);
-            h1          : in std_logic_vector(g_num_samples - 1 downto 0);
-            f_regen     : in std_logic_vector(g_num_samples - 1 downto 0);
-            f_decoded   : in std_logic_vector(g_num_samples - 1 downto 0);
-            t           : out std_logic_vector(g_num_samples - 1 downto 0)
+            h0          : in std_logic_vector(c_max_samples - 1 downto 0);
+            h1          : in std_logic_vector(c_max_samples - 1 downto 0);
+            f_regen     : in std_logic_vector(c_max_samples - 1 downto 0);
+            f_decoded   : in std_logic_vector(c_max_samples - 1 downto 0);
+            t           : out std_logic_vector(c_max_samples - 1 downto 0)
         );
     end component;
 
     component calculate_w1
         generic (
-            g_num_samples : integer := 512;
+
             g_data_width  : integer := 16;
             g_addr_width  : integer := c_addr_width
         );
         port (
+            num_samples : in integer range 256 to c_max_samples := c_num_samples;
             clk         : in std_logic;
             rst_n       : in std_logic;
             start       : in std_logic;
@@ -207,10 +207,11 @@ architecture rtl of hawk_sign is
 
     component sym_break_w1
         generic (
-            g_num_samples : integer := 512;
+
             g_data_width  : integer := 16
         );
         port (
+            num_samples : in integer range 256 to c_max_samples := c_num_samples;
             clk         : in std_logic;
             rst_n       : in std_logic;
             start       : in std_logic;
@@ -223,11 +224,12 @@ architecture rtl of hawk_sign is
 
     component calculate_s1
         generic (
-            g_num_samples : integer := 512;
+
             g_data_width  : integer := 16;
             g_addr_width  : integer := c_addr_width
         );
         port (
+            num_samples : in integer range 256 to c_max_samples := c_num_samples;
             clk         : in std_logic;
             rst_n       : in std_logic;
             start       : in std_logic;
@@ -235,14 +237,16 @@ architecture rtl of hawk_sign is
             done        : out std_logic;
             ready       : out std_logic;
             sym_break   : in std_logic;
-            h1          : in std_logic_vector(g_num_samples - 1 downto 0);
+            h1          : in std_logic_vector(c_max_samples - 1 downto 0);
             w1          : in std_logic_vector(g_data_width - 1 downto 0);
             addr        : out std_logic_vector(g_addr_width - 1 downto 0);
             s1          : out std_logic_vector(g_data_width - 1 downto 0)
         );
     end component;
 
+    signal sample_words : integer range 8 to 32;
 begin
+    sample_words <= num_samples / g_data_width;
     -----------------------------------------------
     -- Process to register the current state
     -----------------------------------------------
@@ -284,42 +288,42 @@ begin
             when WRITE_H0 =>
                 if ack_in = '1' then
                     wr_h0 <= '1';
-                    if cnt_h0 = c_size_fifo - 1 then
+                    if cnt_h0 = sample_words - 1 then
                         next_state <= WRITE_H1;
                     end if;
                 end if;
             when WRITE_H1 =>
                 if ack_in = '1' then
                     wr_h1 <= '1';
-                    if cnt_h1 = c_size_fifo - 1 then
+                    if cnt_h1 = sample_words - 1 then
                         next_state <= WRITE_FMOD2;
                     end if;
                 end if;
             when WRITE_FMOD2 =>
                 if ack_in = '1' then
                     wr_Fmod2 <= '1';
-                    if cnt_Fmod2 = c_size_fifo - 1 then
+                    if cnt_Fmod2 = sample_words - 1 then
                         next_state <= WRITE_GMOD2;
                     end if;
                 end if;
             when WRITE_GMOD2 =>
                 if ack_in = '1' then
                     wr_Gmod2 <= '1';
-                    if cnt_Gmod2 = c_size_fifo - 1 then
+                    if cnt_Gmod2 = sample_words - 1 then
                         next_state <= WRITE_F;
                     end if;
                 end if;
             when WRITE_F =>
                 if ack_in = '1' then
                     wr_f <= '1';
-                    if cnt_f = c_num_samples - 1 then
+                    if cnt_f = num_samples - 1 then
                         next_state <= WRITE_G;
                     end if;
                 end if;
             when WRITE_G =>
                 if ack_in = '1' then
                     wr_g <= '1';
-                    if cnt_g = c_num_samples - 1 then
+                    if cnt_g = num_samples - 1 then
                         next_state <= CALC_T;
                         start_t <= '1';  -- Start the calculation of t
                     end if;
@@ -337,14 +341,14 @@ begin
             when WRITE_X0 =>
                 if ack_in = '1' then
                     wr_x0 <= '1';
-                    if cnt_x0 = c_num_samples - 1 then
+                    if cnt_x0 = num_samples - 1 then
                         next_state <= WRITE_X1;
                     end if;
                 end if;
             when WRITE_X1 =>
                 if ack_in = '1' then
                     wr_x1 <= '1';
-                    if cnt_x1 = c_num_samples - 1 then
+                    if cnt_x1 = num_samples - 1 then
                         next_state <= CALC_W1;
                         start_w1 <= '1';  -- Start the calculation of w1
                     end if;
@@ -352,7 +356,7 @@ begin
             when CALC_W1 =>
                 if done_w1 = '1' then
                     wr_w1 <= '1';  -- Write the calculated w1
-                    if cnt_w1 = c_num_samples - 1 then
+                    if cnt_w1 = num_samples - 1 then
                         next_state <= CALC_SYM_BREAK;
                     end if;
                 end if;
@@ -390,90 +394,90 @@ begin
                 cnt_x1 <= 0;
                 cnt_w1 <= 0;
             else
-                if cnt_h0 = c_size_fifo then
+                if cnt_h0 = sample_words then
                     cnt_h0 <= 0;
                 elsif wr_h0 = '1' then
-                    if cnt_h0 < c_size_fifo then
+                    if cnt_h0 < sample_words then
                         cnt_h0 <= cnt_h0 + 1;
                         h0((cnt_h0+1)*g_data_width-1 downto cnt_h0*g_data_width) <= data_in;
                     end if;
                 end if;
 
-                if cnt_h1 = c_size_fifo then
+                if cnt_h1 = sample_words then
                     cnt_h1 <= 0;
                 elsif wr_h1 = '1' then
-                    if cnt_h1 < c_size_fifo then
+                    if cnt_h1 < sample_words then
                         cnt_h1 <= cnt_h1 + 1;
                         h1((cnt_h1+1)*g_data_width-1 downto cnt_h1*g_data_width) <= data_in;
                     end if;
                 end if;
 
-                if cnt_Fmod2 = c_size_fifo then
+                if cnt_Fmod2 = sample_words then
                     cnt_Fmod2 <= 0;
                 elsif wr_Fmod2 = '1' then
-                    if cnt_Fmod2 < c_size_fifo then
+                    if cnt_Fmod2 < sample_words then
                         cnt_Fmod2 <= cnt_Fmod2 + 1;
                         Fmod2((cnt_Fmod2+1)*g_data_width-1 downto cnt_Fmod2*g_data_width) <= data_in;
                     end if;
                 end if;
 
-                if cnt_Gmod2 = c_size_fifo then
+                if cnt_Gmod2 = sample_words then
                     cnt_Gmod2 <= 0;
                 elsif wr_Gmod2 = '1' then
-                    if cnt_Gmod2 < c_size_fifo then
+                    if cnt_Gmod2 < sample_words then
                         cnt_Gmod2 <= cnt_Gmod2 + 1;
                         Gmod2((cnt_Gmod2+1)*g_data_width-1 downto cnt_Gmod2*g_data_width) <= data_in;
                     end if;
                 end if;
 
-                if cnt_f = c_num_samples then
+                if cnt_f = num_samples then
                     cnt_f <= 0;
                 elsif wr_f = '1' then
-                    if cnt_f < c_num_samples then
+                    if cnt_f < num_samples then
                         cnt_f <= cnt_f + 1;
                         f_mod2(cnt_f) <= data_in(0);
                     end if;
                 end if;
 
-                if cnt_g = c_num_samples then
+                if cnt_g = num_samples then
                     cnt_g <= 0;
                 elsif wr_g = '1' then
-                    if cnt_g < c_num_samples then
+                    if cnt_g < num_samples then
                         cnt_g <= cnt_g + 1;
                         g_mod2(cnt_g) <= data_in(0);
                     end if;
                 end if;
 
-                if cnt_t = 2 * c_size_fifo then
+                if cnt_t = 2 * sample_words then
                     cnt_t <= 0;
                 elsif valid_int = '1' and ready = '1' then
-                    if cnt_t < c_size_fifo then
+                    if cnt_t < sample_words then
                         cnt_t <= cnt_t + 1;
-                    elsif cnt_t < 2 * c_size_fifo then
+                    elsif cnt_t < 2 * sample_words then
                         cnt_t <= cnt_t + 1;
                     end if;
                 end if;
 
-                if cnt_x0 = c_num_samples then
+                if cnt_x0 = num_samples then
                     cnt_x0 <= 0;
                 elsif wr_x0 = '1' then
-                    if cnt_x0 < c_num_samples then
+                    if cnt_x0 < num_samples then
                         cnt_x0 <= cnt_x0 + 1;
                     end if;
                 end if;
 
-                if cnt_x1 = c_num_samples then
+                if cnt_x1 = num_samples then
                     cnt_x1 <= 0;
                 elsif wr_x1 = '1' then
-                    if cnt_x1 < c_num_samples then
+                    if cnt_x1 < num_samples then
                         cnt_x1 <= cnt_x1 + 1;
                     end if;
                 end if;
 
-                if cnt_w1 = c_num_samples then
+                if cnt_w1 = num_samples then
                     cnt_w1 <= 0;
                 elsif wr_w1 = '1' then
-                    if cnt_w1 < c_num_samples then
+                    if cnt_w1 < num_samples then
                         cnt_w1 <= cnt_w1 + 1;
                     end if;
                 end if;
@@ -492,7 +496,7 @@ begin
         last_word_int <= '0';
 
         if current_state = READ_T then
-            if cnt_t < c_size_fifo then
+            if cnt_t < sample_words then
                 data_out <= t0(
                     (cnt_t + 1) * g_data_width - 1
                     downto
@@ -500,13 +504,13 @@ begin
                 );
             else
                 data_out <= t1(
-                    (cnt_t - c_size_fifo + 1) * g_data_width - 1
+                    (cnt_t - sample_words + 1) * g_data_width - 1
                     downto
-                    (cnt_t - c_size_fifo) * g_data_width
+                    (cnt_t - sample_words) * g_data_width
                 );
             end if;
 
-            if cnt_t = 2 * c_size_fifo - 1 then
+            if cnt_t = 2 * sample_words - 1 then
                 last_word_int <= '1';
             end if;
         elsif current_state = CALC_S1 then
@@ -558,7 +562,7 @@ begin
 			dina  => data_in,
 			douta => ram_doutg
 		);
-    
+
     ram_x0 : blk_mem_gen_0
 		port map (
 			clka  => clk,
@@ -590,10 +594,8 @@ begin
 		);
 
     calculate_t0_inst : calculate_t
-        generic map (
-            g_num_samples => g_num_samples
-        )
         port map (
+            num_samples => num_samples,
             clk         => clk,
             rst_n       => rst_n,
             start       => start_t,
@@ -606,10 +608,8 @@ begin
         );
 
     calculate_t1_inst : calculate_t
-        generic map (
-            g_num_samples => g_num_samples
-        )
         port map (
+            num_samples => num_samples,
             clk         => clk,
             rst_n       => rst_n,
             start       => start_t,
@@ -623,11 +623,11 @@ begin
 
     calculate_w1_inst : calculate_w1
         generic map (
-            g_num_samples => g_num_samples,
             g_data_width  => g_data_width,
             g_addr_width  => g_addr_width
         )
         port map (
+            num_samples => num_samples,
             clk         => clk,
             rst_n       => rst_n,
             start       => start_w1,
@@ -645,10 +645,10 @@ begin
 
     sym_break_w1_inst : sym_break_w1
         generic map (
-            g_num_samples => g_num_samples,
             g_data_width  => g_data_width
         )
         port map (
+            num_samples => num_samples,
             clk         => clk,
             rst_n       => rst_n,
             start       => start_w1,
@@ -660,11 +660,11 @@ begin
 
     calculate_s1_inst : calculate_s1
         generic map (
-            g_num_samples => g_num_samples,
             g_data_width  => g_data_width,
             g_addr_width  => g_addr_width
         )
         port map (
+            num_samples => num_samples,
             clk         => clk,
             rst_n       => rst_n,
             start       => start_s1,

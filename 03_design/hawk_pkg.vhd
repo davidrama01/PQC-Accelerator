@@ -5,7 +5,8 @@ use IEEE.numeric_std.all;
 package hawk_pkg is
 
     -- Constants
-    constant c_num_samples  : integer range 0 to 1024 := 512;
+    constant c_max_samples : positive := 1024;
+    constant c_num_samples  : integer range 0 to c_max_samples := 512;
     constant c_data_width   : integer range 0 to 40 := 32;
     constant c_addr_width   : integer range 0 to 10 := 10;
     constant c_sigma_verify : integer range 0 to 12000 := 10469; -- LSB = 13 bits
@@ -13,7 +14,7 @@ package hawk_pkg is
     constant c_threshold_verify : signed(13 downto 0) := resize(shift_right(
         to_signed(8 * c_sigma_verify * c_sigma_verify, 40) *
         to_signed(c_num_samples, 40) + to_signed(2**25, 80), 26), 14);
-    constant c_size_fifo : integer range 0 to 1024 := c_num_samples / c_data_width;
+    constant c_size_fifo : integer range 0 to c_max_samples := c_num_samples / c_data_width;
 
     constant c_low_q00  : integer range 0 to 11 := 5;
     constant c_high_q00 : integer range 0 to 11 := 9;
@@ -31,6 +32,7 @@ package hawk_pkg is
     -- Rebuild S0 constants
 
     function clog2(value : positive) return natural;
+    function verify_threshold(n : positive) return unsigned;
 
     constant c_w1_shift  : integer range 0 to 29 := 29 - 1 - c_high_s1;
     constant c_q00_shift : integer range 0 to 29 := 29 - c_high_q00;
@@ -42,7 +44,7 @@ package hawk_pkg is
 
     -- Functions
     --function parity_check(data : std_logic_vector) return std_logic;
-    
+
 
     -- Procedures
     --procedure increment_counter(signal cnt : inout integer);
@@ -50,6 +52,16 @@ package hawk_pkg is
 end package hawk_pkg;
 
 package body hawk_pkg is
+
+    -- Conserva el sigma y el redondeo del RTL existente; n se selecciona en ejecucion.
+    function verify_threshold(n : positive) return unsigned is
+        variable numerator : signed(79 downto 0);
+    begin
+        numerator := to_signed(8 * c_sigma_verify * c_sigma_verify, 40) *
+                     to_signed(n, 40) + to_signed(2**25, 80);
+        return unsigned(resize(shift_right(numerator, 26), 32));
+    end function;
+
 
     -- function parity_check(data : std_logic_vector) return std_logic is
     --     variable parity : std_logic := '0';

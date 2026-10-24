@@ -5,11 +5,12 @@ use work.hawk_pkg.all;
 
 entity ifft is
     generic (
-        g_num_samples : integer := 512;
+
         g_data_width  : integer := 32;
         g_addr_width  : integer := c_addr_width
     );
     port (
+        num_samples : in integer range 256 to c_max_samples := c_num_samples;
         clk         : in std_logic;
         rst_n       : in std_logic;
         start       : in std_logic;
@@ -50,7 +51,7 @@ architecture rtl of ifft is
 
     -- Cuenta las palabras ya entregadas durante la lectura final. Tras cebar
     -- la tuberia de lectura, data_out_valid se activa durante 512 ciclos.
-    signal ifft_out_count : integer range 0 to g_num_samples - 1 := 0;
+    signal ifft_out_count : integer range 0 to c_max_samples - 1 := 0;
     signal data_out_valid_reg : std_logic := '0';
 
     -- Variables de los tres bucles del Algoritmo 16:
@@ -156,7 +157,7 @@ begin
                     ram_ifft_ena <= '1';
                     ram_ifft_wea <= (others => '1');
 
-                    if unsigned(ram_addra) = g_num_samples - 1 then
+                    if unsigned(ram_addra) = num_samples - 1 then
                         next_state <= ST_RD_DELTA;
                     end if;
                 end if;
@@ -204,11 +205,11 @@ begin
 
             when ST_CAPTURE_X2 =>
                 next_state <= ST_TRANSFORM;
-            
+
             when ST_TRANSFORM =>
                 -- Forma T_re y T_im sumando/restando los productos.
                 next_state <= ST_MUL;
-        
+
             when ST_MUL =>
                 -- Los cuatro productos complejos se registran en esta etapa.
                 next_state <= ST_WR_T1;
@@ -259,7 +260,7 @@ begin
             when ST_RD_IFFT =>
                 -- Una vez cebada la BRAM se obtiene una palabra por ciclo.
                 ram_ifft_ena <= '1';
-                if ifft_out_count = g_num_samples - 1 then
+                if ifft_out_count = num_samples - 1 then
                     next_state <= ST_DONE;
                 end if;
 
@@ -314,7 +315,7 @@ begin
                     rom_enable  <= '0';
 
                     t  <= std_logic_vector(to_unsigned(2, t'length));
-                    m  <= std_logic_vector(shift_right(to_unsigned(g_num_samples, m'length), 1));
+                    m  <= std_logic_vector(shift_right(to_unsigned(num_samples, m'length), 1));
                     u  <= (others => '0');
                     v  <= (others => '0');
                     v0 <= (others => '0');
@@ -322,7 +323,7 @@ begin
 
                 when ST_INIT_RAM =>
                     if data_in_valid = '1' then
-                        if unsigned(ram_addra) = g_num_samples - 1 then
+                        if unsigned(ram_addra) = num_samples - 1 then
                             ram_addra <= (others => '0');
                         else
                             ram_addra <= std_logic_vector(unsigned(ram_addra) + 1);
@@ -348,7 +349,7 @@ begin
                     ram_addra <= std_logic_vector(resize(
                         unsigned(v), ram_addra'length));
                     ram_addrb <= std_logic_vector(resize(
-                        unsigned(v) + to_unsigned(g_num_samples / 2, v'length),
+                        unsigned(v) + to_unsigned(num_samples / 2, v'length),
                         ram_addrb'length));
 
                 when ST_WAIT_X1 =>
@@ -364,7 +365,7 @@ begin
                         ram_addra'length));
                     ram_addrb <= std_logic_vector(resize(
                         unsigned(v) + shift_right(unsigned(t), 1) +
-                        to_unsigned(g_num_samples / 2, v'length),
+                        to_unsigned(num_samples / 2, v'length),
                         ram_addrb'length));
 
                 when ST_WAIT_X2 =>
@@ -395,7 +396,7 @@ begin
                     ram_addra <= std_logic_vector(resize(
                         unsigned(v), ram_addra'length));
                     ram_addrb <= std_logic_vector(resize(
-                        unsigned(v) + to_unsigned(g_num_samples / 2, v'length),
+                        unsigned(v) + to_unsigned(num_samples / 2, v'length),
                         ram_addrb'length));
                     data_a <= std_logic_vector(resize(shift_right(t1_real, 1), g_data_width));
                     data_b <= std_logic_vector(resize(shift_right(t1_imag, 1), g_data_width));
@@ -410,7 +411,7 @@ begin
                         ram_addra'length));
                     ram_addrb <= std_logic_vector(resize(
                         unsigned(v) + unsigned(t) / 2 +
-                        to_unsigned(g_num_samples / 2, v'length),
+                        to_unsigned(num_samples / 2, v'length),
                         ram_addrb'length));
                     data_a <= std_logic_vector(resize(shift_right((resize(prod_rr, 2 * g_data_width + 2) - resize(prod_ii, 2 * g_data_width + 2)), 32), g_data_width));
                     data_b <= std_logic_vector(resize(shift_right((resize(prod_ri, 2 * g_data_width + 2) + resize(prod_ir, 2 * g_data_width + 2)), 32), g_data_width));
@@ -434,7 +435,7 @@ begin
                             v  <= std_logic_vector(unsigned(v0) + unsigned(t));
                         end if;
                     end if;
-                
+
                 when ST_RD_IFFT_INIT =>
                     ram_addra <= (others => '0');
                     ifft_out_count <= 0;
@@ -450,10 +451,10 @@ begin
                     data_out_reg <= ram_douta;
                     data_out_valid_reg <= '1';
 
-                    if ifft_out_count < g_num_samples - 1 then
+                    if ifft_out_count < num_samples - 1 then
                         ifft_out_count <= ifft_out_count + 1;
 
-                        if ifft_out_count < g_num_samples - 3 then
+                        if ifft_out_count < num_samples - 3 then
                             ram_addra <= std_logic_vector(to_unsigned(
                                 ifft_out_count + 3, ram_addra'length));
                         end if;

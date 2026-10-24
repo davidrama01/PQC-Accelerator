@@ -7,11 +7,12 @@ use work.hawk_pkg.all;
 
 entity calculate_w1 is
     generic (
-        g_num_samples : integer := 512;
+
         g_data_width  : integer := 16;
         g_addr_width  : integer := c_addr_width
     );
     port (
+        num_samples : in integer range 256 to c_max_samples := c_num_samples;
         clk         : in std_logic;
         rst_n       : in std_logic;
         start       : in std_logic;
@@ -43,11 +44,12 @@ signal addr_x1_int : std_logic_vector(g_addr_width - 1 downto 0);
 
 component poly_mul
     generic (
-        g_num_samples   : integer := 512;
+
         g_data_width    : integer := 16;
-        g_addr_width    : integer := c_addr_width -- Log2(g_num_samples)
+        g_addr_width    : integer := c_addr_width -- Ancho fisico de direccion
     );
     port (
+            num_samples : in integer range 256 to c_max_samples := c_num_samples;
         clk         : in std_logic;
         rst_n       : in std_logic;
         start       : in std_logic;
@@ -85,11 +87,11 @@ begin
 
     mul_x0_inst: poly_mul
         generic map (
-            g_num_samples => g_num_samples,
             g_data_width => g_data_width,
             g_addr_width => g_addr_width
         )
         port map (
+            num_samples => num_samples,
             clk => clk,
             rst_n => rst_n,
             start => start,
@@ -103,11 +105,11 @@ begin
 
     mul_x1_inst: poly_mul
         generic map (
-            g_num_samples => g_num_samples,
             g_data_width => g_data_width,
             g_addr_width => g_addr_width
         )
         port map (
+            num_samples => num_samples,
             clk => clk,
             rst_n => rst_n,
             start => start,
@@ -118,6 +120,6 @@ begin
             data_b => x0,
             result => mul1_result
         );
-    
+
     -- Multiplication logic here
 end architecture rtl;
