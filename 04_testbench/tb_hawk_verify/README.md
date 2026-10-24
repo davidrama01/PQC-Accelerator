@@ -51,9 +51,9 @@ Los 13 casos se ejecutan consecutivamente sin reset externo:
 | 4 | Primer w1 no nulo negativo, seguido de uno positivo | 1 |
 | 5 | Residuos P1/P2 distintos | 1 |
 | 6 | Residuos iguales a 1, no divisibles entre 512 | 1 |
-| 7 | Norma 6688, debajo del umbral | 0 |
-| 8 | Norma 6689, exactamente el umbral | 0 |
-| 9 | Norma 6690, encima del umbral | 1 |
+| 7 | Norma 8316, debajo del umbral | 0 |
+| 8 | Norma 8317, exactamente el umbral | 0 |
+| 9 | Norma 8318, encima del umbral | 1 |
 | 10 | Recuperacion, w1 denso con signos y h0 no uniforme | 0 |
 | 11 | q00 no constante y q01/w1 densos | 1 |
 | 12 | Recuperacion final | 0 |

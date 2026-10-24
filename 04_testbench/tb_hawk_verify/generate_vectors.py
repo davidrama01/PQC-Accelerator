@@ -33,10 +33,10 @@ def cases():
     c['w1'] = [0]*N; c['w1'][17] = -1; c['w1'][18] = 2; result.append(c)
     c = base('Residuos P1 y P2 diferentes'); c['q00'][0] = 3; result.append(c)
     c = base('Residuos iguales pero no divisibles por n'); c['q00'][0] = 512; result.append(c)
-    for total in (6688, 6689, 6690):
-        c = base(f'Norma {total}: limite 6689')
-        # 81^2 + 11^2 + 2^2 = 6686. Complete using unit coefficients.
-        values = [81, 11, 2] + [1]*(total-6686)
+    for total in (8316, 8317, 8318):
+        c = base(f'Norma {total}: limite 8317')
+        # 91^2 + 5^2 + 3^2 = 8315. Complete using unit coefficients.
+        values = [91, 5, 3] + [1]*(total-8315)
         c['w1'] = values+[0]*(N-len(values)); result.append(c)
     c = base('Recuperacion: w1 denso con signos y h0 no uniforme')
     c['w1'] = [1 if i%3 else -1 for i in range(N)]; c['w1'][0] = 1
@@ -45,8 +45,8 @@ def cases():
     c['q00'][0] = 64
     c['q00'][1], c['q00'][511], c['q00'][7], c['q00'][505] = 3, -3, -2, 2
     rng = random.Random(20261018)
-    c['q01'] = [rng.randint(-1000, 1000) for _ in range(N)]
-    c['w1'] = [rng.randint(-250, 250) for _ in range(N)]; c['w1'][0] = 1
+    c['q01'] = [rng.randint(-16, 16) for _ in range(N)]
+    c['w1'] = [rng.randint(-16, 16) for _ in range(N)]; c['w1'][0] = 1
     c['h0'] = [(i*7+i//3)%2 for i in range(N)]; result.append(c)
     result.append(base('Recuperacion final tras caso complejo'))
     return result
@@ -56,8 +56,8 @@ def main():
     rebuild = module('rebuild_model', HERE.parent/'tb_rebuild_s0/generate_vectors.py')
     norm = module('norm_model', HERE.parent/'tb_polyqnorm/run_polyqnorm.py')
     vectors = cases()
-    threshold = (8*N*10469**2)//2**26
-    assert threshold == 6689
+    threshold = (8*N*1425**2)//1000000
+    assert threshold == 8317
     for i, c in enumerate(vectors):
         if c['q00'][0] < 0:
             c.update(error=1, r1=None, r2=None)
@@ -74,7 +74,7 @@ def main():
     assert [c['error'] for c in vectors[:11]] == [0,1,0,1,1,1,1,0,0,1,0]
     assert vectors[5]['r1'] != vectors[5]['r2']
     assert vectors[6]['r1'] == vectors[6]['r2'] == 1
-    for i, total in zip((7,8,9), (6688,6689,6690)):
+    for i, total in zip((7,8,9), (8316,8317,8318)):
         assert vectors[i]['r1'] == vectors[i]['r2'] == N*total
 
     lines = ['    -- BEGIN GENERATED VECTORS',

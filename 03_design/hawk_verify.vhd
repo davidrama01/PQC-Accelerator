@@ -178,9 +178,8 @@ architecture rtl of hawk_verify is
         return std_logic_vector(resize(reduced, value'length));
     end function;
 
-    -- n=512: divisibilidad mediante los nueve bits bajos y division
-    -- mediante desplazamiento. El umbral del paquete ya incluye el
-    -- escalado de sigma_verify (13 bits fraccionarios).
+    -- Divisibilidad y division mediante log2(n) bits.
+    -- El paquete selecciona el umbral entero de cada variante.
     signal C_LOGN : natural range 8 to 10;
     signal threshold_value : unsigned(31 downto 0);
     signal error_threshold : std_logic;

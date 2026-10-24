@@ -31,7 +31,7 @@ la suma de cuadrados del vector producido por el muestreador de firma.
 Esto es una prueba funcional acotada, no una validacion criptografica
 exhaustiva ni una comprobacion de la fuente de entropia.
 
-## Bloqueos encontrados en el RTL actual
+## Fallos encontrados en la revision inicial (ya corregidos)
 
 1. `03_design/rebuild_s0.vhd`, calculo final de z: implementa
    `floor(v/(2*c_q00))`, con `v=t+c_s0*h0`. La linea 28 del algoritmo 18
@@ -50,9 +50,17 @@ respectivamente. Estos resultados son del modelo, no de XSim.
 El script termina correctamente cuando las pruebas del modelo de la
 especificacion pasan; las lineas RTL AUDIT describen fallos conocidos.
 
-No se ha modificado el RTL en esta revision. Antes de dar por terminado
-el acelerador, hay que corregir estos puntos y usar firmas generadas por
-software como vectores para verificar el RTL completo.
+Revision posterior: se ha corregido el punto 1 en `rebuild_s0.vhd` y han
+pasado las seis pruebas de su testbench en XSim con modelos de memoria/FIFO.
+Los resultados RTL AUDIT anteriores corresponden al estado previo a esa
+correccion. Tambien se ha corregido el punto 2: limites seleccionados por
+num_samples y umbrales enteros 2223, 8317 y 20218, sin aproximacion Q13.
+La prueba `04_testbench/tb_rebuild_s0/run_runtime.py` verifica en XSim
+RebuildS0 para 256, 512, 1024, 256 sin reset, con modelos de memoria/FIFO.
+Las lineas RTL AUDIT del script C conservan el modelo del RTL antiguo
+como diagnostico historico; no describen el RTL actualizado.
+Queda usar firmas generadas por software como vectores para verificar
+el RTL completo y validar las IP reales en placa.
 
 Los registros de compilacion y ejecucion quedan en
 `06_test/.work/keygen_variants/<n>/` y

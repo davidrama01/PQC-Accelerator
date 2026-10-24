@@ -17,13 +17,13 @@ HEADER = 'library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;\n
 MODELS = HEADER + '''
 entity blk_mem_gen_1 is
 port(clka, ena: in std_logic; wea: in std_logic_vector(0 downto 0);
-addra: in std_logic_vector(8 downto 0); dina: in std_logic_vector(31 downto 0);
+addra: in std_logic_vector(9 downto 0); dina: in std_logic_vector(31 downto 0);
 douta: out std_logic_vector(31 downto 0);
 clkb, enb: in std_logic; web: in std_logic_vector(0 downto 0);
-addrb: in std_logic_vector(8 downto 0); dinb: in std_logic_vector(31 downto 0);
+addrb: in std_logic_vector(9 downto 0); dinb: in std_logic_vector(31 downto 0);
 doutb: out std_logic_vector(31 downto 0)); end;
 architecture model of blk_mem_gen_1 is
-type mem_t is array(0 to 511) of std_logic_vector(31 downto 0);
+type mem_t is array(0 to 1023) of std_logic_vector(31 downto 0);
 signal mem: mem_t; -- Uninitialized on purpose: expose unwritten reads.
 signal qa,qb: std_logic_vector(31 downto 0);
 begin
@@ -74,7 +74,7 @@ end process; end;
 '''
 
 
-def main():
+def main(testbench=None, top='rebuild_s0_tb', duration='3 ms'):
     work = Path(tempfile.mkdtemp(prefix='hawk-rebuild-'))
     print(f'Simulation directory: {work}', flush=True)
     coe = (ROOT/'05_software/rom/delta_rom.coe').read_text().split('memory_initialization_vector=')[1]
@@ -98,16 +98,16 @@ end process; end;
     def run(tool, *args):
         subprocess.run([str(BIN/(tool+'.bat')), *map(str,args)], cwd=work, check=True)
     run('xvhdl', '--2008', work/'models.vhd',
-        *[ROOT/'03_design'/f'{name}.vhd' for name in ('hawk_pkg','fft','ifft','rebuild_s0')],
-        Path(__file__).with_name('rebuild_s0_tb.vhd'))
-    run('xelab', 'work.rebuild_s0_tb', '-s', 'rebuild_test')
+        *[ROOT/'03_design'/f'{name}.vhd' for name in ('hawk_pkg','fft','ifft','rebuild_s0','threshold')],
+        testbench or Path(__file__).with_name('rebuild_s0_tb.vhd'))
+    run('xelab', 'work.' + top, '-s', 'rebuild_test')
     # Bound the batch run even when the interactive TB ends with wait/stop.
-    (work/'run.tcl').write_text('run 3 ms\nquit\n')
+    (work/'run.tcl').write_text('run ' + duration + '\nquit\n')
     run('xsim', 'rebuild_test', '-tclbatch', 'run.tcl')
     log = (work/'xsim.log').read_text()
     assert 'Todas las pruebas de RebuildS0 han finalizado correctamente' in log
     assert 'Failure:' not in log and 'Fatal:' not in log
-    print('PASS: all six cases matched; behavioral memory/FIFO models.')
+    print('PASS: all cases matched; behavioral memory/FIFO models.')
 
 
 if __name__ == '__main__':

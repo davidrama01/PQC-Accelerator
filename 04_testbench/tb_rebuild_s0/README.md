@@ -6,16 +6,16 @@ operaciones validas.
 
 | Prueba | Entradas y comprobacion |
 | --- | --- |
-| 1 | q01=w1=0, q00[0]=1: w0=h0 |
+| 1 | q01=w1=0, q00[0]=1: w0=-h0 (empate redondeado hacia arriba) |
 | 2 | q00[0]=-1: done y error, sin salida valida |
-| 3 | Recuperacion tras error y pausas de entrada: w0=h0 |
+| 3 | Recuperacion tras error y pausas de entrada: w0=-h0 |
 | 4 | q00[0]=64, resto cero; q01 y w1 densos, signos mixtos |
 | 5 | Como 4, con q00[1]=3, q00[511]=-3, q00[7]=-2, q00[505]=2 |
 | 6 | Como 5, invirtiendo el signo de todos los coeficientes de q01 |
 
 Los casos 4..6 comparan exactamente cada salida con un modelo entero separado,
 sin tolerancia y sin obtener los valores esperados del DUT. Usan una semilla
-fija (20261002); producen resultados entre -20 y 23. Mas de 450 coeficientes
+fija (20261002); producen resultados entre -112 y 112. Mas de 450 coeficientes
 por caso difieren de h0. Las pausas incluyen datos invalidos deliberadamente
 distintos para detectar su consumo accidental. Se comprueban timeout, numero
 de salidas, datos desconocidos, error, terminacion prematura y ausencia de
@@ -25,14 +25,25 @@ salidas/pulsos done durante cuatro ciclos tras terminar.
 
 `generate_vectors.py` implementa las ecuaciones enteras FFT/IFFT del software
 (`05_software/src/fft_transform.c`), productos complejos, division hacia cero
-y el redondeo final hacia menos infinito. Usa enteros Python sin desbordamiento
+y el redondeo final `z=floor((t+c_s0*h0+c_s0)/(2*c_s0))` del algoritmo 18.
+Usa enteros Python sin desbordamiento
 intermedio y comprueba que los resultados almacenados caben en 32 bits.
 Incluye dos anclas analiticas de impulso con signos opuestos para verificar
 normalizacion y floor. Los twiddles se calculan matematicamente, mientras que
 la simulacion independiente carga la ROM real `delta_rom.coe`.
 
-El modelo esta fijado a n=512 y a los desplazamientos actuales de hawk_pkg:
-q00=20, q01=17, w1=19, s0=8. Si cambian, hay que actualizar el modelo y regenerar.
+Los seis casos del testbench basico usan n=512 y los desplazamientos
+q00=20, q01=17, w1=19, s0=8.
+
+`run_runtime.py` comprueba ademas la secuencia 256, 512, 1024, 256 sin reset,
+con un vector denso independiente por operacion, comparacion de todos los
+coeficientes y comprobacion de los umbrales 2223, 8317 y 20218.
+Tambien prueba el bloque threshold con normas umbral-1, umbral y umbral+1.
+El modelo Python selecciona los desplazamientos de cada variante.
+
+```powershell
+python 04_testbench/tb_rebuild_s0/run_runtime.py
+```
 
 Desde la raiz del repositorio:
 

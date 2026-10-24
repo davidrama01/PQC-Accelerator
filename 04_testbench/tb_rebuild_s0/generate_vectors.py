@@ -46,12 +46,16 @@ def transform(values, inverse=False):
 
 
 def rebuild(q00, q01, w1, h0):
-    a = transform([0] + [x << 20 for x in q00[1:]])
-    b = transform([x << 17 for x in q01])
-    c = transform([x << 19 for x in w1])
+    high00, high01, highs1 = {256: (9, 11, 9), 512: (9, 12, 9),
+                              1024: (10, 14, 10)}[N]
+    s00, s01, sw = 29-high00, 29-high01, 28-highs1
+    sh0 = 1 + sw + s01 - (N.bit_length()-1) - s00
+    a = transform([0] + [x << s00 for x in q00[1:]])
+    b = transform([x << s01 for x in q01])
+    c = transform([x << sw for x in w1])
     quotient = [0] * N
     for i in range(N//2):
-        v = (q00[0] << 12) + a[i]
+        v = (q00[0] << (s00+1-(N.bit_length()-1))) + a[i]
         assert 0 < v < 2**30
         for index, x in ((i, b[i]*c[i] - b[i+N//2]*c[i+N//2]),
                          (i+N//2, b[i]*c[i+N//2] + b[i+N//2]*c[i])):
@@ -59,16 +63,18 @@ def rebuild(q00, q01, w1, h0):
             quotient[index] = (abs(x)//v) * (-1 if x < 0 else 1)
             assert -(2**31) <= quotient[index] < 2**31
     t = transform(quotient, inverse=True)
-    z = [(h * 256 + x) // 2**21 for h, x in zip(h0, t)]
-    assert all(-8192 <= x < 8192 for x in z)
+    z = [(h * (1 << sh0) + x + (1 << sh0)) // (1 << (sh0+1))
+         for h, x in zip(h0, t)]
+    limit = 1 << {256: 12, 512: 13, 1024: 14}[N]
+    assert all(-limit <= x < limit for x in z)
     return [h - 2*x for h, x in zip(h0, z)]
 
 
 def main():
     # Analytic impulse anchors check normalization and both signs of floor.
-    for sign, expected in ((1, -2), (-1, 4)):
+    for sign, expected in ((1, -512), (-1, 512)):
         q = [1] + [0]*511
-        p = [sign*24] + [0]*511
+        p = [sign] + [0]*511
         w = [512] + [0]*511
         assert rebuild(q, p, w, [0]*N) == [expected] + [0]*511
     cases = []
@@ -78,8 +84,8 @@ def main():
             q00[1], q00[511] = 3, -3
             q00[7], q00[505] = -2, 2
         rng = random.Random(20261002)
-        q01 = [rng.randint(-1000, 1000) for i in range(N)]
-        w1 = [rng.randint(-250, 250) for i in range(N)]
+        q01 = [rng.randint(-16, 16) for i in range(N)]
+        w1 = [rng.randint(-16, 16) for i in range(N)]
         if case == 2:
             q01 = [-x for x in q01]
         h0 = [(i*7 + i//3) % 2 for i in range(N)]

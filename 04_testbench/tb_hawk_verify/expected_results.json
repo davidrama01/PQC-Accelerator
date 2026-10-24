@@ -42,22 +42,22 @@
     "r2": 1
   },
   {
-    "label": "Norma 6688: limite 6689",
+    "label": "Norma 8316: limite 8317",
     "error": 0,
-    "r1": 3424256,
-    "r2": 3424256
+    "r1": 4257792,
+    "r2": 4257792
   },
   {
-    "label": "Norma 6689: limite 6689",
+    "label": "Norma 8317: limite 8317",
     "error": 0,
-    "r1": 3424768,
-    "r2": 3424768
+    "r1": 4258304,
+    "r2": 4258304
   },
   {
-    "label": "Norma 6690: limite 6689",
+    "label": "Norma 8318: limite 8317",
     "error": 1,
-    "r1": 3425280,
-    "r2": 3425280
+    "r1": 4258816,
+    "r2": 4258816
   },
   {
     "label": "Recuperacion: w1 denso con signos y h0 no uniforme",
@@ -68,8 +68,8 @@
   {
     "label": "q00 no constante y q01 denso: oraculo completo",
     "error": 1,
-    "r1": 691273145,
-    "r2": 2023207273
+    "r1": 51129183,
+    "r2": 1869888152
   },
   {
     "label": "Recuperacion final tras caso complejo",

@@ -36,7 +36,7 @@ architecture rtl of rebuild_s0 is
     --  2. Calcula FFT(c_q00*z00), FFT(c_q01*q01) y FFT(c_w1*w1).
     --  3. Reconstruye qhat01 por parejas complejas u y u+n/2.
     --  4. Aplica la IFFT para obtener t.
-    --  5. Calcula z=floor((c_s0*h0+t)/(2*c_q00)) y w0=h0-2*z.
+    --  5. Calcula z=floor((c_s0*h0+t+c_s0)/(2*c_s0)) y w0=h0-2*z.
     --
     -- Las lecturas de BRAM y FIFO se separan en estados de direccion,
     -- espera y captura para respetar sus latencias sincronas.
@@ -87,6 +87,10 @@ architecture rtl of rebuild_s0 is
     signal c_bits_samples : natural range 8 to 10;
     signal c_alpha_shift : integer range 0 to 32;
     signal s0_shift : integer range 0 to 32;
+    signal c_w1_shift : natural range 18 to 19;
+    signal c_q00_shift : natural range 19 to 20;
+    signal c_q01_shift : natural range 15 to 18;
+    signal c_high_s0 : natural range 12 to 14;
 
     signal q00           : std_logic_vector(g_data_width - 1 downto 0);
     signal q01           : std_logic_vector(g_data_width - 1 downto 0);
@@ -278,6 +282,10 @@ architecture rtl of rebuild_s0 is
 
 begin
     c_bits_samples <= 8 when num_samples = 256 else 9 when num_samples = 512 else 10;
+    c_w1_shift <= 28 - high_s1(num_samples);
+    c_q00_shift <= 29 - high_q00(num_samples);
+    c_q01_shift <= 29 - high_q01(num_samples);
+    c_high_s0 <= high_s0(num_samples);
     c_alpha_shift <= c_q00_shift + 1 - c_bits_samples;
     s0_shift <= 1 + c_w1_shift + c_q01_shift - c_bits_samples - c_q00_shift;
     ---------------------------------------------------------------------------
@@ -726,8 +734,10 @@ begin
 
                 when ST_CALC_Z =>
                     -- shift_right sobre signed redondea hacia menos infinito:
-                    -- z=floor(v/(2*c_q00)), 2*c_q00=2^(1+c_q00_shift).
-                    z <= resize(shift_right(v, 1 + c_q00_shift), z'length);
+                    -- Algoritmo 18: z=floor((v+c_s0)/(2*c_s0)).
+                    z <= resize(shift_right(
+                        v + shift_left(to_signed(1, v'length), s0_shift),
+                        1 + s0_shift), z'length);
 
                 when ST_OUTPUT_W0 =>
                     if z < to_signed(-(2**c_high_s0), z'length) or

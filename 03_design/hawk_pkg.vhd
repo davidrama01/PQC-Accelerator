@@ -6,38 +6,19 @@ package hawk_pkg is
 
     -- Constants
     constant c_max_samples : positive := 1024;
-    constant c_num_samples  : integer range 0 to c_max_samples := 512;
+    constant c_num_samples  : integer range 0 to c_max_samples := 1024;
     constant c_data_width   : integer range 0 to 40 := 32;
     constant c_addr_width   : integer range 0 to 10 := 10;
-    constant c_sigma_verify : integer range 0 to 12000 := 10469; -- LSB = 13 bits
-    -- Widen before multiplying by n: the complete numerator exceeds integer.
-    constant c_threshold_verify : signed(13 downto 0) := resize(shift_right(
-        to_signed(8 * c_sigma_verify * c_sigma_verify, 40) *
-        to_signed(c_num_samples, 40) + to_signed(2**25, 80), 26), 14);
     constant c_size_fifo : integer range 0 to c_max_samples := c_num_samples / c_data_width;
-
-    constant c_low_q00  : integer range 0 to 11 := 5;
-    constant c_high_q00 : integer range 0 to 11 := 9;
-
-    constant c_low_q01  : integer range 0 to 15 := 9;
-    constant c_high_q01 : integer range 0 to 15 := 12;
-
-    constant c_high_q11 : integer range 0 to 20 := 15;
-
-    constant c_high_s0  : integer range 0 to 20 := 13;
-
-    constant c_low_s1   : integer range 0 to 15 := 5;
-    constant c_high_s1  : integer range 0 to 15 := 9;
 
     -- Rebuild S0 constants
 
     function clog2(value : positive) return natural;
     function verify_threshold(n : positive) return unsigned;
-
-    constant c_w1_shift  : integer range 0 to 29 := 29 - 1 - c_high_s1;
-    constant c_q00_shift : integer range 0 to 29 := 29 - c_high_q00;
-    constant c_q01_shift : integer range 0 to 29 := 29 - c_high_q01;
-    constant c_s0_shift  : integer range 0 to 29 := 1 + c_w1_shift + c_q01_shift - clog2(c_num_samples) - c_q00_shift;
+    function high_q00(n : positive) return natural;
+    function high_q01(n : positive) return natural;
+    function high_s0(n : positive) return natural;
+    function high_s1(n : positive) return natural;
 
     -- Types
     -- type t_poly_coef is array (natural range <>) of signed(natural range <>);
@@ -53,13 +34,44 @@ end package hawk_pkg;
 
 package body hawk_pkg is
 
-    -- Conserva el sigma y el redondeo del RTL existente; n se selecciona en ejecucion.
+    -- floor(8*n*sigma_verify^2), igual que NORM_THR en hawk_params.h.
+    -- Se selecciona el entero exacto para evitar aproximaciones Q13.
     function verify_threshold(n : positive) return unsigned is
-        variable numerator : signed(79 downto 0);
     begin
-        numerator := to_signed(8 * c_sigma_verify * c_sigma_verify, 40) *
-                     to_signed(n, 40) + to_signed(2**25, 80);
-        return unsigned(resize(shift_right(numerator, 26), 32));
+        case n is
+            when 256 => return to_unsigned(2223, 32);
+            when 1024 => return to_unsigned(20218, 32);
+            when others => return to_unsigned(8317, 32);
+        end case;
+    end function;
+
+    -- Parametros de RebuildS0 seleccionados por el registro num_samples.
+    function high_q00(n : positive) return natural is
+    begin
+        if n = 1024 then return 10; else return 9; end if;
+    end function;
+
+    function high_q01(n : positive) return natural is
+    begin
+        case n is
+            when 256 => return 11;
+            when 1024 => return 14;
+            when others => return 12;
+        end case;
+    end function;
+
+    function high_s0(n : positive) return natural is
+    begin
+        case n is
+            when 256 => return 12;
+            when 1024 => return 14;
+            when others => return 13;
+        end case;
+    end function;
+
+    function high_s1(n : positive) return natural is
+    begin
+        if n = 1024 then return 10; else return 9; end if;
     end function;
 
 
