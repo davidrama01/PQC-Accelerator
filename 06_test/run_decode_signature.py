@@ -21,7 +21,7 @@ def main():
         # Local header copies avoid changing the project's parameter selection.
         selected = re.sub(r'^#define HAWK_512$', f'#define HAWK_{n}', params,
                           count=1, flags=re.MULTILINE)
-        (directory / 'hawk_params.h').write_text(selected)
+        (directory / 'hawk_params.h').write_text('#define HAWK_FIXED_PARAMS\n' + selected)
         for header in ('decode.h', 'encode.h'):
             shutil.copyfile(HEADERS / header, directory / header)
         executable = directory / 'test_decode_signature.exe'

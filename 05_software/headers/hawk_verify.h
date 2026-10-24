@@ -7,7 +7,9 @@
 
 /*
  * Verificacion HAWK asistida por el acelerador de Vitis (Algoritmo 20).
- * La variante se selecciona con hawk_params.h y se programa en la FPGA.
+ * La variante activa se selecciona con hawk_select_params(n) y se programa
+ * en la FPGA. No cambiarla durante una operacion ni entre una clave/firma
+ * y su uso: sus formatos dependen del conjunto de parametros.
  * Devuelve 1 si verifica, 0 si la firma/clave no es valida y un valor
  * negativo en error: -1 argumentos, -2 memoria, -3 comunicacion con FPGA.
  * message puede ser NULL solo si message_len es cero.

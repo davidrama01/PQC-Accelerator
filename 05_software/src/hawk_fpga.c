@@ -31,11 +31,11 @@
 
 static XAxiDma hawk_dma;
 
-static int32_t hawk_tx_buffer[HAWK_FPGA_INPUT_WORDS]
+static int32_t hawk_tx_buffer[4U * (HAWK_MAX_N / 32U) + 2U * HAWK_MAX_N]
     __attribute__((aligned(64)));
-static uint32_t hawk_rx_buffer[HAWK_FPGA_RX_WORDS]
+static uint32_t hawk_rx_buffer[HAWK_MAX_N]
     __attribute__((aligned(64)));
-static int32_t hawk_verify_tx_buffer[HAWK_FPGA_VERIFY_WORDS]
+static int32_t hawk_verify_tx_buffer[HAWK_MAX_N / 32U + 3U * HAWK_MAX_N]
     __attribute__((aligned(64)));
 
 static int WaitForDma(unsigned direction)
@@ -236,11 +236,11 @@ int HawkFpgaReceiveS1(int32_t s1[HAWK_N])
     }
 
     Xil_DCacheInvalidateRange((UINTPTR)hawk_rx_buffer,
-                              sizeof hawk_rx_buffer);
+                              (HAWK_FPGA_RX_WORDS * sizeof(hawk_rx_buffer[0])));
 
     status = XAxiDma_SimpleTransfer(&hawk_dma,
                                     (UINTPTR)hawk_rx_buffer,
-                                    sizeof hawk_rx_buffer,
+                                    (HAWK_FPGA_RX_WORDS * sizeof(hawk_rx_buffer[0])),
                                     XAXIDMA_DEVICE_TO_DMA);
     if (status != XST_SUCCESS) {
         return -2;
@@ -251,7 +251,7 @@ int HawkFpgaReceiveS1(int32_t s1[HAWK_N])
     }
 
     Xil_DCacheInvalidateRange((UINTPTR)hawk_rx_buffer,
-                              sizeof hawk_rx_buffer);
+                              (HAWK_FPGA_RX_WORDS * sizeof(hawk_rx_buffer[0])));
     memcpy(s1, hawk_rx_buffer, HAWK_N * sizeof(*s1));
 
     return 0;
@@ -288,7 +288,7 @@ int HawkFpgaCalculateT(const uint32_t h0[HAWK_N_WORDS32],
     HAWK_ACC_mWriteReg(HAWK_FPGA_AXI_ADDR, HAWK_FPGA_SIZE_OFFSET, HAWK_N);
 
     BuildInputBuffer(h0, h1, F_mod2, G_mod2, f, g);
-    Xil_DCacheFlushRange((UINTPTR)hawk_tx_buffer, sizeof hawk_tx_buffer);
+    Xil_DCacheFlushRange((UINTPTR)hawk_tx_buffer, (HAWK_FPGA_INPUT_WORDS * sizeof(hawk_tx_buffer[0])));
     Xil_DCacheInvalidateRange(
         (UINTPTR)hawk_rx_buffer,
         HAWK_FPGA_T_OUTPUT_WORDS * sizeof(hawk_rx_buffer[0]));
@@ -298,7 +298,7 @@ int HawkFpgaCalculateT(const uint32_t h0[HAWK_N_WORDS32],
     /* Preparar primero MM2S para enviar las entradas a la FPGA. */
     status = XAxiDma_SimpleTransfer(&hawk_dma,
                                     (UINTPTR)hawk_tx_buffer,
-                                    sizeof hawk_tx_buffer,
+                                    (HAWK_FPGA_INPUT_WORDS * sizeof(hawk_tx_buffer[0])),
                                     XAXIDMA_DMA_TO_DEVICE);
     if (status != XST_SUCCESS) {
         return -4;
@@ -369,14 +369,14 @@ int HawkFpgaVerify(const uint32_t h0[HAWK_N_WORDS32],
     memcpy(hawk_verify_tx_buffer + offset, q01, HAWK_N * sizeof(*q01));
     offset += HAWK_N;
     memcpy(hawk_verify_tx_buffer + offset, w1, HAWK_N * sizeof(*w1));
-    Xil_DCacheFlushRange((UINTPTR)hawk_verify_tx_buffer, sizeof hawk_verify_tx_buffer);
+    Xil_DCacheFlushRange((UINTPTR)hawk_verify_tx_buffer, (HAWK_FPGA_VERIFY_WORDS * sizeof(hawk_verify_tx_buffer[0])));
 
     HAWK_ACC_mWriteReg(HAWK_FPGA_AXI_ADDR, HAWK_FPGA_MODE_OFFSET, 1U);
     HAWK_ACC_mWriteReg(HAWK_FPGA_AXI_ADDR, HAWK_FPGA_SIZE_OFFSET, HAWK_N);
     /* Start captura el tamano y borra el resultado anterior en el RTL. */
     HAWK_ACC_mWriteReg(HAWK_FPGA_AXI_ADDR, HAWK_FPGA_START_OFFSET, 1U);
     if (XAxiDma_SimpleTransfer(&hawk_dma, (UINTPTR)hawk_verify_tx_buffer,
-                               sizeof hawk_verify_tx_buffer,
+                               (HAWK_FPGA_VERIFY_WORDS * sizeof(hawk_verify_tx_buffer[0])),
                                XAXIDMA_DMA_TO_DEVICE) != XST_SUCCESS) {
         return -4;
     }

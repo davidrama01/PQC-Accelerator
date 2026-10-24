@@ -45,176 +45,76 @@
  *   ps7_uart    115200 (configured by bootrom/bsp)
  */
 
-#include <stdio.h>
+#include <stdint.h>
 #include "platform.h"
 #include "xil_printf.h"
-#include "hawk_acc.h"
-#include "xil_cache.h"
-#include "xaxidma.h"
-#include "xparameters.h"
-#include "stdlib.h"
-#include "xscutimer.h"
 #include "hawk_params.h"
 #include "keygen.h"
 #include "hawk_sign.h"
 #include "hawk_verify.h"
 
-#define MAX_BURST 256
-#define DMA_ID XPAR_AXI_DMA_0_DEVICE_ID
-#define AXI_LITE_ADDR XPAR_HAWK_ACC_0_S00_AXI_BASEADDR
-#define REG0_OFFSET HAWK_ACC_S00_AXI_SLV_REG0_OFFSET
-#define REG1_OFFSET HAWK_ACC_S00_AXI_SLV_REG1_OFFSET
-
-#define WORDS_PER_512BIT 16
-#define NUM_WORDS       (4 * WORDS_PER_512BIT + 512 + 512)
-#define NUM_BYTES       (NUM_WORDS * sizeof(s32))
-
-s32 tx_buffer[NUM_WORDS] __attribute__((aligned(64)));
-
-/* Convierte una secuencia de bytes en una unica cadena hexadecimal. */
-static void bytes_to_hex(char *hex, const uint8_t *bytes, size_t length)
+/* Imprime sin reservar otro buffer del doble de tamano en la pila. */
+static void print_bytes(const char *name, const uint8_t *bytes, size_t length)
 {
-    static const char digits[] = "0123456789abcdef";
-
+    xil_printf("%s = 0x", name);
     for (size_t i = 0U; i < length; i++) {
-        hex[2U * i] = digits[bytes[i] >> 4];
-        hex[2U * i + 1U] = digits[bytes[i] & 0x0FU];
+        xil_printf("%02x", (unsigned int)bytes[i]);
     }
-    hex[2U * length] = '\0';
+    xil_printf("\r\n");
 }
 
-int main()
+static int run_case(uint32_t n)
 {
-    init_platform();
+    /* Seleccionar antes de dimensionar buffers o llamar a cualquier algoritmo. */
+    if (hawk_select_params(n) != 0) {
+        xil_printf("Unsupported n: %lu\r\n", (unsigned long)n);
+        return -1;
+    }
     uint8_t pub[HAWK_PUB_BYTES];
     uint8_t priv[HAWK_PRIV_BYTES];
     uint8_t sig[HAWK_SIG_BYTES];
-    char pub_hex[2U * HAWK_PUB_BYTES + 1U];
-    char priv_hex[2U * HAWK_PRIV_BYTES + 1U];
-    char sig_hex[2U * HAWK_SIG_BYTES + 1U];
-
-    keygen(pub, priv);
-    bytes_to_hex(pub_hex, pub, HAWK_PUB_BYTES);
-    bytes_to_hex(priv_hex, priv, HAWK_PRIV_BYTES);
-
-    xil_printf("public_key = 0x%s\r\n", pub_hex);
-    xil_printf("private_key = 0x%s\r\n", priv_hex);
-
-    print("Successfully ran key generation\n");
-
     static const uint8_t message[] = "Hola HAWK";
 
-    if (hawk_sign(sig, priv, message, sizeof message - 1U) == 0) {
-        bytes_to_hex(sig_hex, sig, HAWK_SIG_BYTES);
-        xil_printf("signature = 0x%s\r\n", sig_hex);
-        print("Successfully ran signing process\n");
-        int verify_result = hawk_verify(sig, sizeof sig, pub, sizeof pub,
-                                        message, sizeof message - 1U);
-        if (verify_result == 1) {
-            print("Signature verified successfully\n");
-        } else if (verify_result == 0) {
-            print("Signature verification failed\n");
-        } else {
-            xil_printf("Verification execution error: %d\r\n", verify_result);
-        }
-    } else {
-        print("Signing process failed\n");
+    xil_printf("\r\n=== %s: n=%lu ===\r\n", HAWK_NAME, (unsigned long)HAWK_N);
+    keygen(pub, priv);
+    print_bytes("public_key", pub, sizeof pub);
+    print_bytes("private_key", priv, sizeof priv);
+    xil_printf("Key generation completed\r\n");
+
+    int result = hawk_sign(sig, priv, message, sizeof message - 1U);
+    if (result != 0) {
+        xil_printf("Signing execution error: %d\r\n", result);
+        return -1;
     }
+    print_bytes("signature", sig, sizeof sig);
+    xil_printf("Signing completed\r\n");
 
-//    int status;
-//
-//	xil_printf("DMA TX test\r\n");
-//
-//	XAxiDma_Config *cfg = XAxiDma_LookupConfig(DMA_ID);
-//	if (!cfg) {
-//		xil_printf("DMA config not found\r\n");
-//		return XST_FAILURE;
-//	}
-//
-//	status = XAxiDma_CfgInitialize(&AxiDma, cfg);
-//	if (status != XST_SUCCESS) {
-//		xil_printf("DMA init failed\r\n");
-//		return XST_FAILURE;
-//	}
-//
-//	if (XAxiDma_HasSg(&AxiDma)) {
-//		xil_printf("DMA is in Scatter-Gather mode\r\n");
-//		return XST_FAILURE;
-//	}
-//
-//	// Cada valor de 512 bits se reparte en 16 palabras de 32 bits
-//	static const s32 h0_words[WORDS_PER_512BIT] = {0x10000001, 0x10000002, 0x10000003, 0x10000004,
-//		0x10000005, 0x10000006, 0x10000007, 0x10000008,
-//		0x10000009, 0x1000000A, 0x1000000B, 0x1000000C,
-//		0x1000000D, 0x1000000E, 0x1000000F, 0x10000010};
-//	static const s32 h1_words[WORDS_PER_512BIT] = {0x20000001, 0x20000002, 0x20000003, 0x20000004,
-//		0x20000005, 0x20000006, 0x20000007, 0x20000008,
-//		0x20000009, 0x2000000A, 0x2000000B, 0x2000000C,
-//		0x2000000D, 0x2000000E, 0x2000000F, 0x20000010};
-//	static const s32 fmod2_words[WORDS_PER_512BIT] = {0x30000001, 0x30000002, 0x30000003, 0x30000004,
-//		0x30000005, 0x30000006, 0x30000007, 0x30000008,
-//		0x30000009, 0x3000000A, 0x3000000B, 0x3000000C,
-//		0x3000000D, 0x3000000E, 0x3000000F, 0x30000010};
-//	static const s32 gmod2_words[WORDS_PER_512BIT] = {0x40000001, 0x40000002, 0x40000003, 0x40000004,
-//		0x40000005, 0x40000006, 0x40000007, 0x40000008,
-//		0x40000009, 0x4000000A, 0x4000000B, 0x4000000C,
-//		0x4000000D, 0x4000000E, 0x4000000F, 0x40000010};
-//	static s32 f_words[512];
-//	static s32 g_words[512];
-//
-//	for (int i = 0; i < 512; i++) {
-//		f_words[i] = (i % 5) - 4;
-//		g_words[i] = 4 - (i % 5);
-//	}
-//
-//	int word_index = 0;
-//
-//	for (int i = 0; i < WORDS_PER_512BIT; i++) {
-//		tx_buffer[word_index++] = (s32)h0_words[i];
-//	}
-//	for (int i = 0; i < WORDS_PER_512BIT; i++) {
-//		tx_buffer[word_index++] = (s32)h1_words[i];
-//	}
-//	for (int i = 0; i < WORDS_PER_512BIT; i++) {
-//		tx_buffer[word_index++] = (s32)fmod2_words[i];
-//	}
-//	for (int i = 0; i < WORDS_PER_512BIT; i++) {
-//		tx_buffer[word_index++] = (s32)gmod2_words[i];
-//	}
-//	for (int i = 0; i < 512; i++) {
-//		tx_buffer[word_index++] = (s32)f_words[i];
-//	}
-//	for (int i = 0; i < 512; i++) {
-//		tx_buffer[word_index++] = (s32)g_words[i];
-//	}
-//
-//	// Importante si la cachÃ© estÃ¡ activada
-//	Xil_DCacheFlushRange((UINTPTR)tx_buffer, NUM_BYTES);
-//
-//    // Se activa la transferencias de datos de entrada
-//    HAWK_ACC_mWriteReg(AXI_LITE_ADDR, REG0_OFFSET, 1);
-//
-//    // Enviar datos: DDR -> DMA -> AXI Stream -> PL
-//	status = XAxiDma_SimpleTransfer(
-//		&AxiDma,
-//		(UINTPTR)tx_buffer,
-//		NUM_BYTES,
-//		XAXIDMA_DMA_TO_DEVICE
-//	);
-//
-//	if (status != XST_SUCCESS) {
-//		xil_printf("DMA TX transfer failed\r\n");
-//		return XST_FAILURE;
-//	}
-//
-//	while (XAxiDma_Busy(&AxiDma, XAXIDMA_DMA_TO_DEVICE));
-//
-//	xil_printf("DMA TX transfer completed\r\n");
-//
-//	//while(HAWK_ACC_mReadReg(XPAR_HAWK_ACC_0_S00_AXI_BASEADDR, HAWK_ACC_S00_AXI_SLV_REG1_OFFSET) != 1){}; //Se espera a que termine la suma (Done = 1)
-//
-//	return XST_SUCCESS;
+    result = hawk_verify(sig, sizeof sig, pub, sizeof pub,
+                         message, sizeof message - 1U);
+    if (result == 1) {
+        xil_printf("Signature verified successfully\r\n");
+        return 0;
+    }
+    if (result == 0) {
+        xil_printf("Signature verification failed\r\n");
+    } else {
+        xil_printf("Verification execution error: %d\r\n", result);
+    }
+    return -1;
+}
 
+int main(void)
+{
+    static const uint32_t sizes[] = {256U, 512U, 1024U};
+    unsigned failures = 0U;
+    init_platform();
+    for (size_t i = 0U; i < sizeof sizes / sizeof sizes[0]; i++) {
+        int result = run_case(sizes[i]);
+        xil_printf("HAWK-%lu: %s\r\n", (unsigned long)sizes[i],
+                   result == 0 ? "PASS" : "FAIL");
+        failures += result != 0;
+    }
+    xil_printf("Completed: %u/3 cases passed\r\n", 3U - failures);
     cleanup_platform();
-    return 0;
+    return failures == 0U ? 0 : 1;
 }

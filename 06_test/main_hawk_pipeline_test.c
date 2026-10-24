@@ -1,5 +1,6 @@
 /* Host mathematical backend: does not replace a test of the actual FPGA. */
 #include <assert.h>
+#include <stdarg.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,8 +16,8 @@
 #include "ntt_transform.h"
 
 static uint32_t rng_state = UINT32_C(0x6A09E667), rng_calls, sign_attempts;
-static int32_t saved_f[HAWK_N], saved_g[HAWK_N], saved_s1[HAWK_N];
-static uint32_t saved_h1[HAWK_N_WORDS32];
+static int32_t saved_f[HAWK_MAX_N], saved_g[HAWK_MAX_N], saved_s1[HAWK_MAX_N];
+static uint32_t saved_h1[HAWK_MAX_N / 32U];
 static unsigned phase;
 static int rtl_parameters, check_norm, scaling_overflow;
 static uint64_t sampled_norm, verified_norm;
@@ -41,8 +42,16 @@ int Rnd(uint8_t *out, size_t num_bits)
 
 int xil_printf(const char *format, ...)
 {
+#ifdef HAWK_HELLOWORLD_TEST
+    va_list args;
+    va_start(args, format);
+    int result = vprintf(format, args);
+    va_end(args);
+    return result;
+#else
     (void)format;
     return 0;
+#endif
 }
 
 static unsigned bit(const uint32_t *x, size_t i)
@@ -67,15 +76,17 @@ int HawkFpgaCalculateT(const uint32_t *h0, const uint32_t *h1,
                        const int32_t *f, const int32_t *g,
                        uint32_t *t0, uint32_t *t1)
 {
-    uint32_t fp[HAWK_N_WORDS32] = {0}, gp[HAWK_N_WORDS32] = {0};
+    uint32_t fp[HAWK_N_WORDS32], gp[HAWK_N_WORDS32];
     uint32_t product[HAWK_N_WORDS32];
+    memset(fp, 0, sizeof fp);
+    memset(gp, 0, sizeof gp);
     assert(phase == 0U);
     if (++sign_attempts > 1000U) {
         return -1;
     }
-    memcpy(saved_f, f, sizeof saved_f);
-    memcpy(saved_g, g, sizeof saved_g);
-    memcpy(saved_h1, h1, sizeof saved_h1);
+    memcpy(saved_f, f, (HAWK_N * sizeof(saved_f[0])));
+    memcpy(saved_g, g, (HAWK_N * sizeof(saved_g[0])));
+    memcpy(saved_h1, h1, (HAWK_N_WORDS32 * sizeof(saved_h1[0])));
     for (size_t i = 0U; i < HAWK_N; i++) {
         fp[i / 32U] |= ((uint32_t)f[i] & 1U) << (i % 32U);
         gp[i / 32U] |= ((uint32_t)g[i] & 1U) << (i % 32U);
@@ -126,7 +137,7 @@ int HawkFpgaSendX(const int32_t *x0, const int32_t *x1)
 int HawkFpgaReceiveS1(int32_t *s1)
 {
     assert(phase == 2U);
-    memcpy(s1, saved_s1, sizeof saved_s1);
+    memcpy(s1, saved_s1, (HAWK_N * sizeof(saved_s1[0])));
     phase = 0U;
     return 0;
 }
@@ -280,6 +291,7 @@ int HawkFpgaVerify(const uint32_t *h0, const int32_t *q00, const int32_t *q01,
     return 0;
 }
 
+#ifndef HAWK_HELLOWORLD_TEST
 int main(void)
 {
     uint8_t pub[HAWK_PUB_BYTES], priv[HAWK_PRIV_BYTES], sig[HAWK_SIG_BYTES];
@@ -330,3 +342,5 @@ int main(void)
     printf("PASS pipeline %s (mathematical accelerator backend)\n", HAWK_NAME);
     return 0;
 }
+
+#endif

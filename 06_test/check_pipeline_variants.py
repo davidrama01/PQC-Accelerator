@@ -22,7 +22,7 @@ def main():
             shutil.copyfile(header, directory / header.name)
         selected = re.sub(r'^#define HAWK_512$', f'#define HAWK_{n}', params,
                           count=1, flags=re.MULTILINE)
-        (directory / 'hawk_params.h').write_text(selected)
+        (directory / 'hawk_params.h').write_text('#define HAWK_FIXED_PARAMS\n' + selected)
         executable = directory / 'pipeline_test.exe'
         sources = [ROOT / '05_software/src' / (name + '.c') for name in
                    ('keygen', 'basic', 'decode', 'encode', 'regenerate',

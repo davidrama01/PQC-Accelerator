@@ -68,14 +68,14 @@ def vectors(directory, n):
         w1 = [((h[n//8+i//8] >> (i % 8)) & 1) - 2*s1[i] for i in range(n)]
         packets.append([x & 0xFFFFFFFF for x in h0 + q00 + q01 + w1])
     lines = ['#define VERIFY_CASES 3U',
-             'static const uint8_t public_key[HAWK_PUB_BYTES] = ' + c_array(pub) + ';',
-             'static const uint8_t signature[HAWK_SIG_BYTES] = ' + c_array(sig) + ';',
+             f'static const uint8_t public_key[{pub_len}] = ' + c_array(pub) + ';',
+             f'static const uint8_t signature[{sig_len}] = ' + c_array(sig) + ';',
              'static const size_t message_lengths[VERIFY_CASES] = {' +
              ','.join(str(len(x))+'U' for x in messages) + '};',
              'static const uint8_t messages[VERIFY_CASES][1024] = {' +
              ','.join(c_array(x) if x else '{0}' for x in messages) + '};',
              'static const uint32_t expected_packets[VERIFY_CASES]' +
-             '[HAWK_N_WORDS32 + 3U * HAWK_N] = {' +
+             f'[{n//32 + 3*n}] = ' + '{' +
              ','.join(c_array(x, 8) for x in packets) + '};']
     (directory / 'verify_vectors.h').write_text('\n'.join(lines) + '\n')
 
@@ -83,6 +83,8 @@ def vectors(directory, n):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cc', default='C:/MINGW/bin/gcc.exe')
+    parser.add_argument('--runtime', action='store_true',
+                        help='Test the runtime parameter selection and real DMA driver')
     args = parser.parse_args()
     params = (HEADERS / 'hawk_params.h').read_text()
     for n in PARAMETERS:
@@ -92,7 +94,8 @@ def main():
             shutil.copyfile(HEADERS / header, directory / header)
         selected = re.sub(r'^#define HAWK_512$', f'#define HAWK_{n}', params,
                           count=1, flags=re.MULTILINE)
-        (directory / 'hawk_params.h').write_text(selected)
+        (directory / 'hawk_params.h').write_text(
+            params if args.runtime else '#define HAWK_FIXED_PARAMS\n' + selected)
         vectors(directory, n)
         executable = directory / 'test_hawk_verify.exe'
         command = [args.cc, '-std=c99', '-O2', '-Wall', '-Wextra', '-Werror',
@@ -101,6 +104,8 @@ def main():
                    *[str(ROOT / '05_software/src' / (name + '.c')) for name in
                      ('hawk_verify', 'hawk_fpga', 'decode', 'encode', 'shake256')],
                    str(ROOT / '06_test/main_hawk_verify_test.c'), '-o', str(executable)]
+        if args.runtime:
+            command[1:1] = [f'-DHAWK_TEST_N={n}', str(ROOT / '05_software/src/hawk_params.c')]
         compiled = subprocess.run(command, capture_output=True, text=True)
         (directory / 'compile.log').write_text(compiled.stdout + compiled.stderr)
         if compiled.returncode:

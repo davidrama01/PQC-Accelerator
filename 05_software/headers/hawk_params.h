@@ -3,6 +3,106 @@
 #include <stdint.h>
 #include <math.h>
 
+#ifndef HAWK_FIXED_PARAMS
+/* Parametros compartidos por todo el programa. Seleccionar solo entre operaciones. */
+typedef struct { uint16_t hi; uint64_t lo; } hawk_u80;
+typedef struct {
+    const char *hawk_name;
+    uint32_t hawk_lambda;
+    uint32_t hawk_n;
+    uint32_t hawk_eta;
+    uint32_t hawk_sigma_sign;
+    uint32_t hawk_sigma_verify;
+    uint32_t hawk_sigma_krec;
+    uint32_t hawk_saltlen_bits;
+    uint32_t hawk_kgseed_bits;
+    uint32_t hawk_hpub_bits;
+    uint32_t hawk_q00_low_bits;
+    uint32_t hawk_q00_high_bits;
+    uint32_t hawk_q01_low_bits;
+    uint32_t hawk_q01_high_bits;
+    uint32_t hawk_q11_bits;
+    uint32_t hawk_s0_high_bits;
+    uint32_t hawk_s1_low_bits;
+    uint32_t hawk_s1_high_bits;
+    uint32_t hawk_beta0_num;
+    uint32_t hawk_beta0_den;
+    uint32_t hawk_priv_bytes;
+    uint32_t hawk_pub_bytes;
+    uint32_t hawk_sig_bytes;
+    uint32_t sampler_table_len;
+    const hawk_u80 *t0, *t1;
+} hawk_parameters;
+extern const hawk_parameters *hawk_current_params;
+int hawk_select_params(uint32_t n);
+#define HAWK_MAX_N 1024U
+#define HAWK_NAME (hawk_current_params->hawk_name)
+#define HAWK_LAMBDA (hawk_current_params->hawk_lambda)
+#define HAWK_N (hawk_current_params->hawk_n)
+#define HAWK_ETA (hawk_current_params->hawk_eta)
+#define HAWK_SIGMA_SIGN (hawk_current_params->hawk_sigma_sign)
+#define HAWK_SIGMA_VERIFY (hawk_current_params->hawk_sigma_verify)
+#define HAWK_SIGMA_KREC (hawk_current_params->hawk_sigma_krec)
+#define HAWK_SALTLEN_BITS (hawk_current_params->hawk_saltlen_bits)
+#define HAWK_KGSEED_BITS (hawk_current_params->hawk_kgseed_bits)
+#define HAWK_HPUB_BITS (hawk_current_params->hawk_hpub_bits)
+#define HAWK_Q00_LOW_BITS (hawk_current_params->hawk_q00_low_bits)
+#define HAWK_Q00_HIGH_BITS (hawk_current_params->hawk_q00_high_bits)
+#define HAWK_Q01_LOW_BITS (hawk_current_params->hawk_q01_low_bits)
+#define HAWK_Q01_HIGH_BITS (hawk_current_params->hawk_q01_high_bits)
+#define HAWK_Q11_BITS (hawk_current_params->hawk_q11_bits)
+#define HAWK_S0_HIGH_BITS (hawk_current_params->hawk_s0_high_bits)
+#define HAWK_S1_LOW_BITS (hawk_current_params->hawk_s1_low_bits)
+#define HAWK_S1_HIGH_BITS (hawk_current_params->hawk_s1_high_bits)
+#define HAWK_BETA0_NUM (hawk_current_params->hawk_beta0_num)
+#define HAWK_BETA0_DEN (hawk_current_params->hawk_beta0_den)
+#define HAWK_PRIV_BYTES (hawk_current_params->hawk_priv_bytes)
+#define HAWK_PUB_BYTES (hawk_current_params->hawk_pub_bytes)
+#define HAWK_SIG_BYTES (hawk_current_params->hawk_sig_bytes)
+#define HAWK_SAMPLER_TABLE_LEN (hawk_current_params->sampler_table_len)
+#define HAWK_T0 (hawk_current_params->t0)
+#define HAWK_T1 (hawk_current_params->t1)
+#define HAWK_N_BYTES            (HAWK_N / 8)
+
+#define HAWK_N_WORDS32          (HAWK_N / 32U)
+
+#define HAWK_KGSEED_BYTES       (HAWK_KGSEED_BITS / 8)
+
+#define HAWK_HPUB_BYTES         (HAWK_HPUB_BITS / 8)
+
+#define HAWK_SALTLEN_BYTES      (HAWK_SALTLEN_BITS / 8)
+
+/* M = SHAKE256(m || hpub)[0:512] para todos los conjuntos de parametros. */
+#define HAWK_M_BYTES            64U
+
+#define HAWK_SAMPLER_Y_WORDS    ((5 * HAWK_N) / 2)
+
+#define HAWK_SAMPLER_X4_WORDS   (HAWK_SAMPLER_Y_WORDS / 4)
+
+#define HAWK_BETA0              ((double)HAWK_BETA0_NUM / (double)HAWK_BETA0_DEN)
+
+#define P1                      2147473409
+
+#define G1                      3
+
+#define P2                      2147389441
+
+#define G2                      11
+
+#define PI                      3.14159265358979323846264338327950288
+
+#define DELTA_ANGLE             2.0 * PI / 2048.0
+
+#define Y00_MAX_BITS (HAWK_N / 2U) *(1U + HAWK_Q00_LOW_BITS + (1U << (HAWK_Q00_HIGH_BITS - HAWK_Q00_LOW_BITS)))
+
+#define Y01_MAX_BITS (HAWK_N) *(1U + HAWK_Q01_LOW_BITS + (1U << (HAWK_Q01_HIGH_BITS - HAWK_Q01_LOW_BITS)))
+
+#define YS1_MAX_BITS ((HAWK_N) * (1U + HAWK_S1_LOW_BITS + (1U << (HAWK_S1_HIGH_BITS - HAWK_S1_LOW_BITS))))
+
+#define NORM_THR     8ULL * HAWK_N * HAWK_SIGMA_VERIFY * HAWK_SIGMA_VERIFY / (1000000ULL)
+
+
+#else
 /*
  * ============================================================
  * Selección de conjunto de parámetros
@@ -312,4 +412,7 @@ typedef struct {
 
 #endif
 
+
+#define HAWK_MAX_N 1024U
+#endif /* HAWK_FIXED_PARAMS */
 #endif

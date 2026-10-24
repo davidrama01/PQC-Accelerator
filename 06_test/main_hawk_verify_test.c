@@ -160,11 +160,16 @@ static int verify_case(unsigned index)
 
 int main(void)
 {
+#ifdef HAWK_TEST_N
+    assert(hawk_select_params(HAWK_TEST_N) == 0);
+#endif
     uint8_t bad_sig[HAWK_SIG_BYTES], bad_pub[HAWK_PUB_BYTES];
     const enum fault_t failures[] = {LOOKUP, INITIALIZE, SCATTER_GATHER,
         BUSY_TX, BUSY_RX, SUBMIT, DMA_ERROR, DMA_TIMEOUT, RESULT_TIMEOUT};
-    uint32_t h0[HAWK_N_WORDS32] = {0}, error;
-    int32_t polynomial[HAWK_N] = {0};
+    uint32_t h0[HAWK_N_WORDS32], error;
+    int32_t polynomial[HAWK_N];
+    memset(h0, 0, sizeof h0);
+    memset(polynomial, 0, sizeof polynomial);
 
     for (unsigned i = 0U; i < VERIFY_CASES; i++) {
         for (unsigned rejected = 0U; rejected <= 1U; rejected++) {
