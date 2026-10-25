@@ -112,47 +112,6 @@ architecture rtl of hawk_sign is
     signal ready_sym_break : std_logic;
     signal sym_break : std_logic;
 
-    attribute MARK_DEBUG : string;
-    attribute MARK_DEBUG of current_state : signal is "TRUE";
-    attribute MARK_DEBUG of next_state : signal is "TRUE";
-    attribute MARK_DEBUG of wr_h0 : signal is "TRUE";
-    attribute MARK_DEBUG of wr_h1 : signal is "TRUE";
-    attribute MARK_DEBUG of wr_Fmod2 : signal is "TRUE";
-    attribute MARK_DEBUG of wr_Gmod2 : signal is "TRUE";
-    attribute MARK_DEBUG of wr_f : signal is "TRUE";
-    attribute MARK_DEBUG of wr_g : signal is "TRUE";
-    -- attribute MARK_DEBUG of cnt_Fmod2 : signal is "TRUE";
-    -- attribute MARK_DEBUG of cnt_Gmod2 : signal is "TRUE";
-    -- attribute MARK_DEBUG of cnt_h0 : signal is "TRUE";
-    -- attribute MARK_DEBUG of cnt_h1 : signal is "TRUE";
-    -- attribute MARK_DEBUG of cnt_f : signal is "TRUE";
-    -- attribute MARK_DEBUG of cnt_g : signal is "TRUE";
-    -- attribute MARK_DEBUG of cnt_t : signal is "TRUE";
-    -- attribute MARK_DEBUG of h0 : signal is "TRUE";
-    -- attribute MARK_DEBUG of h1 : signal is "TRUE";
-    -- attribute MARK_DEBUG of Fmod2 : signal is "TRUE";
-    -- attribute MARK_DEBUG of Gmod2 : signal is "TRUE";
-    -- attribute MARK_DEBUG of f_mod2 : signal is "TRUE";
-    -- attribute MARK_DEBUG of g_mod2 : signal is "TRUE";
-    -- attribute MARK_DEBUG of wea_f : signal is "TRUE";
-    -- attribute MARK_DEBUG of wea_g : signal is "TRUE";
-    -- attribute MARK_DEBUG of ram_addr_f : signal is "TRUE";
-    -- attribute MARK_DEBUG of ram_addr_g : signal is "TRUE";
-    -- attribute MARK_DEBUG of ram_addr_x0 : signal is "TRUE";
-    -- attribute MARK_DEBUG of ram_addr_x1 : signal is "TRUE";
-    attribute MARK_DEBUG of start_t : signal is "TRUE";
-    attribute MARK_DEBUG of done_t0 : signal is "TRUE";
-    attribute MARK_DEBUG of done_t1 : signal is "TRUE";
-    attribute MARK_DEBUG of t0 : signal is "TRUE";
-    -- attribute MARK_DEBUG of t1 : signal is "TRUE";
-    -- attribute MARK_DEBUG of ram_en : signal is "TRUE";
-    -- attribute MARK_DEBUG of ram_wea : signal is "TRUE";
-    -- attribute MARK_DEBUG of addr_f : signal is "TRUE";
-    -- attribute MARK_DEBUG of ram_dina : signal is "TRUE";
-    -- attribute MARK_DEBUG of ram_doutf : signal is "TRUE";
-    -- attribute MARK_DEBUG of ram_doutg : signal is "TRUE";
-    -- attribute MARK_DEBUG of ram_dout_x0 : signal is "TRUE";
-    -- attribute MARK_DEBUG of ram_dout_x1 : signal is "TRUE";
 
 	component blk_mem_gen_0
 		port (
@@ -449,7 +408,8 @@ begin
 
                 if cnt_t = 2 * sample_words then
                     cnt_t <= 0;
-                elsif valid_int = '1' and ready = '1' then
+                -- Las transferencias de s1 no pertenecen a este contador.
+                elsif current_state = READ_T and valid_int = '1' and ready = '1' then
                     if cnt_t < sample_words then
                         cnt_t <= cnt_t + 1;
                     elsif cnt_t < 2 * sample_words then

@@ -74,7 +74,7 @@ end process; end;
 '''
 
 
-def main(testbench=None, top='rebuild_s0_tb', duration='3 ms'):
+def main(testbench=None, top='rebuild_s0_tb', duration='10 ms'):
     work = Path(tempfile.mkdtemp(prefix='hawk-rebuild-'))
     print(f'Simulation directory: {work}', flush=True)
     coe = (ROOT/'05_software/rom/delta_rom.coe').read_text().split('memory_initialization_vector=')[1]
@@ -98,7 +98,7 @@ end process; end;
     def run(tool, *args):
         subprocess.run([str(BIN/(tool+'.bat')), *map(str,args)], cwd=work, check=True)
     run('xvhdl', '--2008', work/'models.vhd',
-        *[ROOT/'03_design'/f'{name}.vhd' for name in ('hawk_pkg','fft','ifft','rebuild_s0','threshold')],
+        *[ROOT/'03_design'/f'{name}.vhd' for name in ('hawk_pkg','fft','ifft','signed_divider','rebuild_s0','threshold')],
         testbench or Path(__file__).with_name('rebuild_s0_tb.vhd'))
     run('xelab', 'work.' + top, '-s', 'rebuild_test')
     # Bound the batch run even when the interactive TB ends with wait/stop.

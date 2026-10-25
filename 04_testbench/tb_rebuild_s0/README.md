@@ -54,14 +54,14 @@ python 04_testbench/tb_rebuild_s0/run_standalone.py
 
 Las constantes generadas estan incluidas en el propio VHDL: no hay que anadir
 un paquete ni configurar rutas de ficheros de vectores en Vivado. Ejecutar
-`rebuild_s0_tb` durante 2 ms o mas. El `finish` final esta comentado para
+`rebuild_s0_tb` durante 4 ms o mas. El `finish` final esta comentado para
 mantener abierta la simulacion interactiva; el script batch limita la duracion
-a 3 ms. Con Run All y el reloj activo es necesario pausar manualmente.
+a 10 ms. Con Run All y el reloj activo es necesario pausar manualmente.
 Cualquier diferencia es `severity failure`.
 
 ## Alcance de la validacion
 
-Las seis pruebas pasan con XSim 2022.1 en 1.934986 ms simulados, usando el RTL
+Las seis pruebas pasan con XSim 2022.1 en 3.650186 ms simulados, usando el RTL
 real de FFT, IFFT y rebuild. Tambien se han ejecutado con las IP de Xilinx
 generadas en el proyecto vecino `C:/David/TFM/project_1`: blk_mem_gen_1,
 blk_mem_gen_2 y fifo_generator_0, con su fichero de inicializacion de ROM.
@@ -82,3 +82,34 @@ La cobertura es numerica y de protocolo para estos casos; no es una prueba
 exhaustiva ni una certificacion contra la especificacion HAWK. Quedan fuera
 otras dimensiones, reset durante calculo, todos los limites aritmeticos y las
 ramas de error por denominador/cociente fuera de rango y por z fuera de rango.
+
+
+## Division secuencial
+
+`03_design/signed_divider.vhd` debe compilarse antes de `rebuild_s0.vhd`.
+Rebuild comparte una instancia entre las componentes real e imaginaria:
+start, espera de done, captura del cociente, y siguiente componente.
+El divisor captura los operandos al aceptar start mientras esta libre y procesa
+un bit por ciclo (65 ciclos con los anchos actuales), truncando hacia cero.
+Un divisor cero produce cociente cero y divide_by_zero; reset aborta el calculo.
+El caso minimo signed dividido por -1 desborda y conserva el patron de bits
+modulo 2^g_numerator_width. Rebuild excluye ese caso mediante sus cotas previas.
+
+Ejecutar `python 04_testbench/tb_rebuild_s0/run_divider.py` para 249 casos
+reproducibles, incluidos limites, signos, entradas cambiantes y reset activo.
+`run_runtime.py` comprueba los tamanos 256, 512, 1024 y 256 sin reset.
+Estas pruebas usan modelos de memoria; el cierre de timing requiere volver a
+sintetizar e implementar con las IP reales. Al actualizar la IP empaquetada,
+incluir signed_divider en los grupos de sintesis y simulacion, actualizar la IP
+del block design y regenerar sus productos antes de lanzar las ejecuciones.
+
+
+## Operandos FFT registrados
+
+ST_CAPTURE_FFT captura q01_re_operand, q01_im_operand, w1_re_operand y
+w1_im_operand desde las salidas de memoria. ST_MUL_FFT calcula los cuatro
+productos desde esos registros, y ST_CALC_X conserva la suma/resta siguiente.
+La secuencia de lectura de BRAM, las divisiones y la salida no cambian.
+Se agrega un ciclo por pareja compleja, es decir n/2 ciclos por reconstruccion
+valida: 512 ciclos (5,12 us a 100 MHz) para n=1024. Las pruebas funcionales
+usan modelos de memoria; la mejora de timing debe verificarse en implementacion.

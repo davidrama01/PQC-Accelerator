@@ -41,6 +41,16 @@ def main():
     (work / 'test.log').write_text(log)
     for n in (256, 512, 1024):
         assert f'HAWK-{n}: PASS' in log, log
+        section = log.split(f'=== HAWK-{n}: n={n} ===', 1)[1].split('=== HAWK-', 1)[0]
+        assert 'Checks: 13/13 passed' in section, section
+        for name in ('altered message', 'altered salt', 'malformed signature (PS)',
+                     'truncated signature (PS)', 'malformed public key (PS)',
+                     'truncated public key (PS)'):
+            assert f'PASS: {name} (result=0)' in section, section
+        for name in ('PL negative sym-break', 'PL invalid q00', 'PL excessive norm'):
+            assert f'PASS: {name} (verify_error=1)' in section, section
+        assert 'PASS: PL recovery after rejection (verify_error=0)' in section, section
+        assert 'PASS: original signature after all errors (result=1)' in section, section
         print(f'PASS actual helloworld n={n}')
     assert result.returncode == 0 and 'Completed: 3/3 cases passed' in log, log
     print(f'PASS: one executable, mathematical FPGA backend. Log: {work / "test.log"}')

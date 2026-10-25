@@ -68,3 +68,14 @@ Validacion ejecutada con XSim y modelos de memoria de dos ciclos: todos
 los casos superados. Es una comprobacion funcional; no se ha ejecutado
 sintesis ni analisis de timing. La reduccion usa `mod` por constante,
 igual que el modulo NTT original.
+
+
+La reduccion del producto ancho usa ahora una instancia de mod_reducer,
+compilada antes de la transformada. ST_TRANSFORM inicia la reduccion y
+ST_REDUCE_WAIT espera done antes de continuar. Cada reduccion de 64 bits
+ocupa 64 ciclos mas el control, sin operador mod combinacional en el RTL.
+El reset de la transformada aborta tambien la reduccion pendiente.
+Los scripts usan memorias de 1024 palabras y tablas Gamma n1024; estos
+vectores siguen probando n=512, seleccionado explicitamente en el testbench.
+La validacion es funcional con modelos de memoria; repetir implementacion
+para comprobar el timing. Actualizar la IP empaquetada del block design.

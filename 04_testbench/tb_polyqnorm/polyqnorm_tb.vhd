@@ -26,7 +26,7 @@ begin
     begin
         dut : entity work.polyqnorm(rtl)
             generic map (g_modulus => P)
-            port map (clk => clk, rst_n => rst_n, start => start, data_in_valid => valid_in,
+            port map (num_samples => 512, clk => clk, rst_n => rst_n, start => start, data_in_valid => valid_in,
                       data_q00 => q00, data_q01 => q01, data_w0 => w0, data_w1 => w1,
                       data_out => result, data_out_valid => valid_out, done => done, error => dut_error);
         stimulus : process
@@ -70,6 +70,46 @@ begin
                 wait;
             end if;
             reset_dut;
+            -- Invalid residues at first/middle/last accepted position, in all
+            -- four streams. Exercise recovery without reset between trials.
+            for stream in 0 to 3 loop
+                for position_case in 0 to 2 loop
+                    launch;
+                    -- Invalid values during a valid gap must be ignored.
+                    valid_in <= '0';
+                    q00 <= (others=>'1'); q01 <= (others=>'1');
+                    w0 <= (others=>'1'); w1 <= (others=>'1');
+                    for gap in 1 to 2 loop wait until falling_edge(clk); end loop;
+                    assert dut_error='0' and done='0'
+                        report "Rejected an unaccepted word" severity failure;
+                    for index in 0 to position_case*255 + position_case/2 loop
+                        q00 <= std_logic_vector(to_unsigned(1,32));
+                        q01 <= (others=>'0'); w0 <= (others=>'0'); w1 <= (others=>'0');
+                        if index=position_case*255 + position_case/2 then
+                            case stream is
+                                when 0 => q00 <= std_logic_vector(to_unsigned(P,32));
+                                when 1 => q01 <= std_logic_vector(to_unsigned(P,32));
+                                when 2 => w0 <= std_logic_vector(to_unsigned(P,32));
+                                when 3 => w1 <= std_logic_vector(to_unsigned(P,32));
+                            end case;
+                        end if;
+                        valid_in <= '1'; wait until falling_edge(clk);
+                    end loop;
+                    valid_in <= '0'; finished := false;
+                    for cycle in 1 to 10 loop
+                        wait until falling_edge(clk);
+                        if done='1' then
+                            assert dut_error='1' and valid_out='0'
+                                report "Invalid residue not rejected" severity failure;
+                            finished := true; exit;
+                        end if;
+                    end loop;
+                    assert finished report "Delayed validation timeout" severity failure;
+                    for gap in 1 to 3 loop wait until falling_edge(clk); end loop;
+                    assert done='0' report "Repeated error completion" severity failure;
+                end loop;
+            end loop;
+            report LABEL_P & ": 12 registered-validation cases passed";
             -- Reset mientras la inversion modular esta en curso.
             launch;
             valid_in <= '1';
@@ -105,7 +145,7 @@ begin
                     wait until falling_edge(clk);
                 end loop;
                 valid_in <= '0'; outputs := 0; finished := false;
-                for cycle in 0 to 300000 loop
+                for cycle in 0 to 6000000 loop
                     wait until rising_edge(clk); wait for 1 ns;
                     assert not is_x(done) and not is_x(valid_out) and not is_x(dut_error)
                         report LABEL_P & ": control desconocido" severity failure;

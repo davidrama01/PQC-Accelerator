@@ -47,6 +47,8 @@ architecture rtl of polyqnorm is
 
         -- Carga y almacenamiento de las cuatro NTT.
         ST_LOAD,
+        ST_DRAIN_LOAD,
+        ST_CHECK_LOAD,
         ST_WR_NTT,
         ST_COMMIT_NTT,
 
@@ -59,16 +61,25 @@ architecture rtl of polyqnorm is
         -- Inverso modular de q00 mediante Fermat.
         ST_INV_TEST,
         ST_INV_MUL,
+        ST_INV_MUL_EXEC,
         ST_INV_REDUCE,
+        ST_INV_REDUCE_WAIT,
         ST_INV_SQUARE,
+        ST_INV_SQUARE_EXEC,
         ST_INV_SQUARE_REDUCE,
+        ST_INV_SQUARE_REDUCE_WAIT,
         ST_INV_NEXT,
 
         -- Calculo y almacenamiento de d y e.
         ST_MUL_D,
+        ST_MUL_D_EXEC,
         ST_REDUCE_D,
+        ST_REDUCE_D_WAIT,
         ST_MUL_E,
+        ST_MUL_E_EXEC,
         ST_REDUCE_E,
+        ST_REDUCE_E_WAIT,
+        ST_ADD_E,
         ST_COMMIT_E,
 
         -- Lectura directa y adjunta para calcular c.
@@ -79,11 +90,18 @@ architecture rtl of polyqnorm is
 
         -- Productos y acumulacion modular de c.
         ST_MUL_QE,
+        ST_MUL_QE_EXEC,
         ST_REDUCE_QE,
+        ST_REDUCE_QE_WAIT,
         ST_MUL_EADJ,
+        ST_MUL_EADJ_EXEC,
         ST_REDUCE_EADJ,
+        ST_REDUCE_EADJ_WAIT,
         ST_MUL_DW,
+        ST_MUL_DW_EXEC,
         ST_REDUCE_DW,
+        ST_REDUCE_DW_WAIT,
+        ST_SUM_TERMS,
         ST_ACCUMULATE,
         ST_DONE,
         ST_ERROR
@@ -104,6 +122,7 @@ architecture rtl of polyqnorm is
     signal u             : natural range 0 to c_max_samples - 1;
     signal ntt_valid     : std_logic_vector(3 downto 0);
     signal input_invalid : std_logic;
+    signal input_range_errors : std_logic_vector(3 downto 0);
 
     -- Direcciones compartidas por las memorias de coeficientes.
     signal addr_a : std_logic_vector(g_addr_width - 1 downto 0);
@@ -116,16 +135,21 @@ architecture rtl of polyqnorm is
     signal w1_value  : word_t;
     signal d         : word_t;
     signal e         : word_t;
+    signal e_reduced : word_t; -- Registered modular product before addition.
     signal e_adj     : word_t;
     signal w1_adj    : word_t;
     signal term_a    : word_t;
     signal term_b    : word_t;
+    signal term_sum  : word_t; -- Registered sum before updating the accumulator.
     signal r         : word_t;
 
     -- Inverso modular por exponenciacion y producto completo.
     signal inv_base : word_t;
     signal inv_acc  : word_t;
     signal inv_exp  : word_t;
+    signal reduce_start, reduce_done : std_logic;
+    signal reduced_value : word_t;
+    signal mul_operand_a, mul_operand_b : word_t;
     signal product  : unsigned(2 * g_data_width - 1 downto 0);
 
     -- Registros de control de la salida.
@@ -197,13 +221,49 @@ architecture rtl of polyqnorm is
     signal w1_enb   : std_logic;
     signal w1_wea   : std_logic_vector(0 downto 0);
 
+    -- Verification diagnostics: select these preserved nets in Set Up Debug.
+    attribute MARK_DEBUG : string;
+    attribute MARK_DEBUG of state : signal is "TRUE";
+    attribute MARK_DEBUG of input_range_errors : signal is "TRUE";
+    attribute MARK_DEBUG of input_invalid : signal is "TRUE";
+    attribute MARK_DEBUG of error_flag : signal is "TRUE";
+    attribute MARK_DEBUG of done_reg : signal is "TRUE";
+
 begin
+    reduce_start <= '1' when state = ST_INV_REDUCE or state = ST_INV_SQUARE_REDUCE or state = ST_REDUCE_D or state = ST_REDUCE_E or state = ST_REDUCE_QE or state = ST_REDUCE_EADJ or state = ST_REDUCE_DW else '0';
+    reducer_inst : entity work.mod_reducer
+        generic map (g_input_width => 2*g_data_width,
+                     g_result_width => g_data_width, g_modulus => g_modulus)
+        port map (clk => clk, rst_n => core_rst_n, start => reduce_start,
+                  data_in => product, residue => reduced_value,
+                  busy => open, done => reduce_done);
 
     core_rst_n <= '0' when state = ST_ERROR else rst_n;
     core_start <= start when state = ST_IDLE else '0';
     core_valid <= data_in_valid when state = ST_LOAD else '0';
-    input_invalid <= '1' when unsigned(data_q00) >= C_P or unsigned(data_q01) >= C_P or
-                              unsigned(data_w0) >= C_P or unsigned(data_w1) >= C_P else '0';
+    -- Stage 1 registers the four comparisons independently; unaccepted
+    -- cycles contribute zero. Stage 2 preserves any registered range error.
+    p_input_validation : process(clk)
+    begin
+        if rising_edge(clk) then
+            if rst_n = '0' then
+                input_range_errors <= (others=>'0');
+                input_invalid <= '0';
+            elsif state = ST_IDLE and start = '1' then
+                input_range_errors <= (others=>'0');
+                input_invalid <= '0';
+            else
+                input_range_errors <= (others=>'0');
+                if state = ST_LOAD and data_in_valid = '1' then
+                    if unsigned(data_q00) >= C_P then input_range_errors(0)<='1'; end if;
+                    if unsigned(data_q01) >= C_P then input_range_errors(1)<='1'; end if;
+                    if unsigned(data_w0) >= C_P then input_range_errors(2)<='1'; end if;
+                    if unsigned(data_w1) >= C_P then input_range_errors(3)<='1'; end if;
+                end if;
+                if input_range_errors /= "0000" then input_invalid <= '1'; end if;
+            end if;
+        end if;
+    end process;
     error <= error_flag;
     done <= done_reg;
     data_out <= std_logic_vector(r);
@@ -245,13 +305,21 @@ begin
                 end if;
 
             when ST_LOAD =>
-                if data_in_valid = '1' then
-                    if input_invalid = '1' then
-                        next_state <= ST_ERROR;
-                    elsif load_count = num_samples - 1 then
-                        next_state <= ST_WR_NTT;
-                    end if;
+                if input_invalid = '1' then
+                    next_state <= ST_ERROR;
+                elsif data_in_valid = '1' and load_count = num_samples - 1 then
+                    next_state <= ST_DRAIN_LOAD;
                 end if;
+
+            when ST_DRAIN_LOAD =>
+                -- Accumulate the final word's registered comparisons before
+                -- testing input_invalid. No further NTT inputs are forwarded.
+                next_state <= ST_CHECK_LOAD;
+
+            when ST_CHECK_LOAD =>
+                -- Both validation stages now include the final accepted word.
+                if input_invalid = '1' then next_state <= ST_ERROR;
+                else next_state <= ST_WR_NTT; end if;
 
             when ST_WR_NTT =>
                 if ntt_valid = "1111" then
@@ -304,30 +372,65 @@ begin
                 end if;
 
             when ST_INV_MUL =>
+                next_state <= ST_INV_MUL_EXEC;
+
+            when ST_INV_MUL_EXEC =>
                 next_state <= ST_INV_REDUCE;
 
             when ST_INV_REDUCE =>
-                next_state <= ST_INV_SQUARE;
+                next_state <= ST_INV_REDUCE_WAIT;
+
+            when ST_INV_REDUCE_WAIT =>
+                if reduce_done = '1' then
+                    next_state <= ST_INV_SQUARE;
+                end if;
 
             when ST_INV_SQUARE =>
+                next_state <= ST_INV_SQUARE_EXEC;
+
+            when ST_INV_SQUARE_EXEC =>
                 next_state <= ST_INV_SQUARE_REDUCE;
 
             when ST_INV_SQUARE_REDUCE =>
-                next_state <= ST_INV_NEXT;
+                next_state <= ST_INV_SQUARE_REDUCE_WAIT;
+
+            when ST_INV_SQUARE_REDUCE_WAIT =>
+                if reduce_done = '1' then
+                    next_state <= ST_INV_NEXT;
+                end if;
 
             when ST_INV_NEXT =>
                 next_state <= ST_INV_TEST;
 
             when ST_MUL_D =>
+                next_state <= ST_MUL_D_EXEC;
+
+            when ST_MUL_D_EXEC =>
                 next_state <= ST_REDUCE_D;
 
             when ST_REDUCE_D =>
-                next_state <= ST_MUL_E;
+                next_state <= ST_REDUCE_D_WAIT;
+
+            when ST_REDUCE_D_WAIT =>
+                if reduce_done = '1' then
+                    next_state <= ST_MUL_E;
+                end if;
 
             when ST_MUL_E =>
+                next_state <= ST_MUL_E_EXEC;
+
+            when ST_MUL_E_EXEC =>
                 next_state <= ST_REDUCE_E;
 
             when ST_REDUCE_E =>
+                next_state <= ST_REDUCE_E_WAIT;
+
+            when ST_REDUCE_E_WAIT =>
+                if reduce_done = '1' then
+                    next_state <= ST_ADD_E;
+                end if;
+
+            when ST_ADD_E =>
                 next_state <= ST_COMMIT_E;
 
             when ST_COMMIT_E =>
@@ -360,21 +463,48 @@ begin
                 next_state <= ST_MUL_QE;
 
             when ST_MUL_QE =>
+                next_state <= ST_MUL_QE_EXEC;
+
+            when ST_MUL_QE_EXEC =>
                 next_state <= ST_REDUCE_QE;
 
             when ST_REDUCE_QE =>
-                next_state <= ST_MUL_EADJ;
+                next_state <= ST_REDUCE_QE_WAIT;
+
+            when ST_REDUCE_QE_WAIT =>
+                if reduce_done = '1' then
+                    next_state <= ST_MUL_EADJ;
+                end if;
 
             when ST_MUL_EADJ =>
+                next_state <= ST_MUL_EADJ_EXEC;
+
+            when ST_MUL_EADJ_EXEC =>
                 next_state <= ST_REDUCE_EADJ;
 
             when ST_REDUCE_EADJ =>
-                next_state <= ST_MUL_DW;
+                next_state <= ST_REDUCE_EADJ_WAIT;
+
+            when ST_REDUCE_EADJ_WAIT =>
+                if reduce_done = '1' then
+                    next_state <= ST_MUL_DW;
+                end if;
 
             when ST_MUL_DW =>
+                next_state <= ST_MUL_DW_EXEC;
+
+            when ST_MUL_DW_EXEC =>
                 next_state <= ST_REDUCE_DW;
 
             when ST_REDUCE_DW =>
+                next_state <= ST_REDUCE_DW_WAIT;
+
+            when ST_REDUCE_DW_WAIT =>
+                if reduce_done = '1' then
+                    next_state <= ST_SUM_TERMS;
+                end if;
+
+            when ST_SUM_TERMS =>
                 next_state <= ST_ACCUMULATE;
 
             when ST_ACCUMULATE =>
@@ -389,9 +519,21 @@ begin
         end case;
     end process p_next_state;
 
+    -- Dedicated registered multiplier. Operand selection is one cycle earlier;
+    -- continuous capture avoids a state-dependent enable on the DSP datapath.
+    p_multiply : process(clk)
+    begin
+        if rising_edge(clk) then
+            if rst_n = '0' then
+                product <= (others => '0');
+            else
+                product <= mul_operand_a * mul_operand_b;
+            end if;
+        end if;
+    end process;
+
     -- Registros, operaciones modulares y acumulacion del resultado.
     p_datapath : process(clk)
-        variable reduced : word_t;
     begin
         if rising_edge(clk) then
             if rst_n = '0' then
@@ -406,14 +548,17 @@ begin
                 w1_value <= (others => '0');
                 d <= (others => '0');
                 e <= (others => '0');
+                e_reduced <= (others => '0');
                 e_adj <= (others => '0');
                 w1_adj <= (others => '0');
                 inv_base <= (others => '0');
                 inv_acc <= (others => '0');
                 inv_exp <= (others => '0');
-                product <= (others => '0');
+                mul_operand_a <= (others => '0');
+                mul_operand_b <= (others => '0');
                 term_a <= (others => '0');
                 term_b <= (others => '0');
+                term_sum <= (others => '0');
                 r <= (others => '0');
                 error_flag <= '0';
                 done_reg <= '0';
@@ -457,32 +602,46 @@ begin
                         inv_exp <= to_unsigned(g_modulus - 2, g_data_width);
 
                     when ST_INV_MUL =>
-                        product <= inv_acc * inv_base;
+                        mul_operand_a <= inv_acc;
+                        mul_operand_b <= inv_base;
 
-                    when ST_INV_REDUCE =>
-                        inv_acc <= resize(product mod resize(C_P, product'length), g_data_width);
+                    when ST_INV_REDUCE_WAIT =>
+                        if reduce_done = '1' then
+                            inv_acc <= reduced_value;
+                        end if;
 
                     when ST_INV_SQUARE =>
-                        product <= inv_base * inv_base;
+                        mul_operand_a <= inv_base;
+                        mul_operand_b <= inv_base;
 
-                    when ST_INV_SQUARE_REDUCE =>
-                        inv_base <= resize(product mod resize(C_P, product'length), g_data_width);
+                    when ST_INV_SQUARE_REDUCE_WAIT =>
+                        if reduce_done = '1' then
+                            inv_base <= reduced_value;
+                        end if;
 
                     when ST_INV_NEXT =>
                         inv_exp <= shift_right(inv_exp, 1);
 
                     when ST_MUL_D =>
-                        product <= w1_value * inv_acc;
+                        mul_operand_a <= w1_value;
+                        mul_operand_b <= inv_acc;
 
-                    when ST_REDUCE_D =>
-                        d <= resize(product mod resize(C_P, product'length), g_data_width);
+                    when ST_REDUCE_D_WAIT =>
+                        if reduce_done = '1' then
+                            d <= reduced_value;
+                        end if;
 
                     when ST_MUL_E =>
-                        product <= d * q01_value;
+                        mul_operand_a <= d;
+                        mul_operand_b <= q01_value;
 
-                    when ST_REDUCE_E =>
-                        reduced := resize(product mod resize(C_P, product'length), g_data_width);
-                        e <= add_mod(w0_value, reduced);
+                    when ST_REDUCE_E_WAIT =>
+                        if reduce_done = '1' then
+                            e_reduced <= reduced_value;
+                        end if;
+
+                    when ST_ADD_E =>
+                        e <= add_mod(w0_value, e_reduced);
 
                     when ST_COMMIT_E =>
                         if u = num_samples - 1 then
@@ -503,25 +662,37 @@ begin
                         w1_adj <= unsigned(w1_doutb);
 
                     when ST_MUL_QE =>
-                        product <= q00_value * e;
+                        mul_operand_a <= q00_value;
+                        mul_operand_b <= e;
 
-                    when ST_REDUCE_QE =>
-                        term_a <= resize(product mod resize(C_P, product'length), g_data_width);
+                    when ST_REDUCE_QE_WAIT =>
+                        if reduce_done = '1' then
+                            term_a <= reduced_value;
+                        end if;
 
                     when ST_MUL_EADJ =>
-                        product <= term_a * e_adj;
+                        mul_operand_a <= term_a;
+                        mul_operand_b <= e_adj;
 
-                    when ST_REDUCE_EADJ =>
-                        term_a <= resize(product mod resize(C_P, product'length), g_data_width);
+                    when ST_REDUCE_EADJ_WAIT =>
+                        if reduce_done = '1' then
+                            term_a <= reduced_value;
+                        end if;
 
                     when ST_MUL_DW =>
-                        product <= d * w1_adj;
+                        mul_operand_a <= d;
+                        mul_operand_b <= w1_adj;
 
-                    when ST_REDUCE_DW =>
-                        term_b <= resize(product mod resize(C_P, product'length), g_data_width);
+                    when ST_REDUCE_DW_WAIT =>
+                        if reduce_done = '1' then
+                            term_b <= reduced_value;
+                        end if;
+
+                    when ST_SUM_TERMS =>
+                        term_sum <= add_mod(term_a, term_b);
 
                     when ST_ACCUMULATE =>
-                        r <= add_mod(r, add_mod(term_a, term_b));
+                        r <= add_mod(r, term_sum);
                         if u < num_samples - 1 then
                             u <= u + 1;
                         end if;

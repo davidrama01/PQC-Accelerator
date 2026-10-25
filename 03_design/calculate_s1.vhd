@@ -34,7 +34,7 @@ signal done_d : std_logic;
 signal ready_d : std_logic;
 signal coefficient_index : integer range 0 to c_max_samples - 1;
 
-type state_t is (IDLE, REQUEST_DATA, CAPTURE_DATA, PRESENT_DATA);
+type state_t is (IDLE, REQUEST_DATA, WAIT_MEMORY, CAPTURE_DATA, PRESENT_DATA);
 signal state : state_t;
 
 begin
@@ -63,9 +63,14 @@ begin
 
                 -- La BRAM captura la direccion presentada durante este ciclo.
                 when REQUEST_DATA =>
+                    state <= WAIT_MEMORY;
+
+                -- Esperar el registro de salida de blk_mem_gen_0 antes
+                -- de consumir el dato correspondiente a coefficient_index.
+                when WAIT_MEMORY =>
                     state <= CAPTURE_DATA;
 
-                -- Un ciclo despues, se registra el coeficiente calculado.
+                -- La lectura de dos ciclos ya ha entregado el dato correcto.
                 when CAPTURE_DATA =>
                     h1_ext := (others => '0');
                     if h1(coefficient_index) = '1' then

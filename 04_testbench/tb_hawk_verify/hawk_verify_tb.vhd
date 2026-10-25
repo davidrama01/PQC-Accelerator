@@ -8,7 +8,7 @@ end entity hawk_verify_tb;
 
 architecture simulation of hawk_verify_tb is
     constant C_CLK_PERIOD : time := 10 ns;
-    constant C_TIMEOUT   : positive := 300000;
+    constant C_TIMEOUT   : positive := 6000000;
 
     -- BEGIN GENERATED VECTORS
     -- Regenerar con generate_vectors.py; no usa resultados del DUT.

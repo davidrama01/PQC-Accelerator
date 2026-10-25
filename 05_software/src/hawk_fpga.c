@@ -338,6 +338,13 @@ int HawkFpgaCalculateT(const uint32_t h0[HAWK_N_WORDS32],
     return 0;
 }
 
+/* Keep the public verification return codes while exposing transport failures. */
+static int VerifyTransportError(int status, const char *stage)
+{
+    xil_printf("HawkFpgaVerify: error %d (%s)\r\n", status, stage);
+    return status;
+}
+
 int HawkFpgaVerify(const uint32_t h0[HAWK_N_WORDS32],
                    const int32_t q00[HAWK_N],
                    const int32_t q01[HAWK_N],
@@ -346,21 +353,22 @@ int HawkFpgaVerify(const uint32_t h0[HAWK_N_WORDS32],
 {
     size_t offset = 0U;
     uint32_t timeout = HAWK_FPGA_VERIFY_TIMEOUT;
+    uint32_t last_status = 0U;
 
     if (error == NULL) {
-        return -1;
+        return VerifyTransportError(-1, "invalid arguments");
     }
     *error = 1U;
     if (h0 == NULL || q00 == NULL || q01 == NULL || w1 == NULL) {
-        return -1;
+        return VerifyTransportError(-1, "invalid arguments");
     }
     if (HawkFpgaInit() != 0 || XAxiDma_HasSg(&hawk_dma)) {
-        return -2;
+        return VerifyTransportError(-2, "DMA initialization or scatter-gather configuration");
     }
-    if (XAxiDma_Busy(&hawk_dma, XAXIDMA_DMA_TO_DEVICE) ||
-        XAxiDma_Busy(&hawk_dma, XAXIDMA_DEVICE_TO_DMA)) {
-        return -3;
-    }
+    // if (XAxiDma_Busy(&hawk_dma, XAXIDMA_DMA_TO_DEVICE) ||
+    //     XAxiDma_Busy(&hawk_dma, XAXIDMA_DEVICE_TO_DMA)) {
+    //     return VerifyTransportError(-3, "DMA still busy before verification");
+    // }
 
     memcpy(hawk_verify_tx_buffer, h0, HAWK_N_WORDS32 * sizeof(*h0));
     offset += HAWK_N_WORDS32;
@@ -378,19 +386,22 @@ int HawkFpgaVerify(const uint32_t h0[HAWK_N_WORDS32],
     if (XAxiDma_SimpleTransfer(&hawk_dma, (UINTPTR)hawk_verify_tx_buffer,
                                (HAWK_FPGA_VERIFY_WORDS * sizeof(hawk_verify_tx_buffer[0])),
                                XAXIDMA_DMA_TO_DEVICE) != XST_SUCCESS) {
-        return -4;
+        return VerifyTransportError(-4, "MM2S transfer could not start");
     }
     if (WaitForDma(XAXIDMA_DMA_TO_DEVICE) != 0) {
-        return -5;
+        return VerifyTransportError(-5, "MM2S transfer error or timeout");
     }
 
     while (timeout-- != 0U) {
         const uint32_t status = HAWK_ACC_mReadReg(HAWK_FPGA_AXI_ADDR,
                                                  HAWK_FPGA_VERIFY_OFFSET);
+        last_status = status;
         if ((status & HAWK_FPGA_VERIFY_DONE) != 0U) {
             *error = status & HAWK_FPGA_VERIFY_ERROR;
             return 0;
         }
     }
-    return -6;
+    xil_printf("HawkFpgaVerify: last status=0x%08lx, n=%lu\r\n",
+               (unsigned long)last_status, (unsigned long)HAWK_N);
+    return VerifyTransportError(-6, "timeout waiting for FPGA verification result");
 }

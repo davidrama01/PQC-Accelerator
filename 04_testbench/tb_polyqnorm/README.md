@@ -88,3 +88,96 @@ es `C:/David/TFM/hawk_fw/04_testbench/tb_polyqnorm/`. Asi tambien funciona
 sin copiar los TXT al directorio de simulacion. Si se mueve el repositorio,
 actualizar este generico incluyendo la barra final. Un fallo al abrirlos
 se comunica al inicio, antes de ejecutar las pruebas.
+
+
+La reduccion del producto para e se registra ahora en `e_reduced` durante
+ST_REDUCE_E. ST_ADD_E hace la suma modular en el ciclo siguiente; la escritura
+en BRAM sigue en ST_COMMIT_E. Esto agrega un ciclo por coeficiente y separa
+las dos operaciones sin cambiar la aritmetica.
+
+Para probar el RTL con modelos de RAM y ROM de dos ciclos y las tablas Gamma
+n1024 del repositorio (prefijos para n=512):
+
+```powershell
+python 04_testbench/tb_polyqnorm/run_polyqnorm.py --models
+```
+
+La prueba con IP reales usa por defecto 02_project/hawk_acc y requiere que
+las IP generadas coincidan en ancho y puertos con el RTL. Los modelos no
+validan esa configuracion ni el timing de implementacion.
+
+
+## Reduccion modular secuencial
+
+Compilar `03_design/mod_reducer.vhd` antes de polyqnorm. Una instancia por
+PolyQnorm atiende sus siete operaciones de reduccion. Los estados ST_*REDUCE
+inician la operacion y los estados correspondientes *_WAIT conservan los
+operandos y esperan done antes de guardar el residuo. El reductor procesa
+un bit por ciclo: 64 ciclos para cada producto, mas control. Captura la entrada
+al aceptar start, mantiene el resultado y aborta operaciones al recibir reset.
+La suma modular de e conserva su etapa independiente ST_ADD_E.
+
+Esta implementacion prioriza recursos y caminos cortos sobre latencia:
+la exponenciacion modular ejecuta muchas reducciones por coeficiente.
+Los limites de simulacion de PolyQnorm y HawkVerify se han ampliado.
+Los emisores deben esperar el resultado; revisar tambien los timeouts del
+software antes de usar la nueva implementacion en placa.
+
+Prueba independiente de limites, valores aleatorios y reset (418 casos P1/P2):
+
+```powershell
+python 04_testbench/tb_polyqnorm/run_reducer.py
+```
+
+La IP empaquetada incluye mod_reducer en los grupos de sintesis y simulacion.
+Actualizar la IP del block design y regenerar los productos antes de sintetizar.
+NTT e INTT tambien usan mod_reducer para reducir sus productos anchos.
+No quedan operadores mod ejecutables en las fuentes VHDL de 03_design.
+
+
+## Registros de operandos del multiplicador
+
+Las siete operaciones que antes asignaban directamente un producto cargan
+mul_operand_a y mul_operand_b en su estado ST_*MUL/ST_INV_SQUARE. Un estado
+*_EXEC adicional deja registrar la multiplicacion antes de activar la reduccion.
+Un proceso dedicado captura continuamente el producto de esos registros,
+sin selector ni habilitacion dependiente de la FSM en la entrada del multiplicador.
+mod_reducer captura ese producto al aceptar start y no depende de sus cambios
+posteriores. Se agrega un ciclo por multiplicacion. Las sumas, validaciones,
+reset e interfaces mantienen su comportamiento previo. La mejora de timing
+requiere verificar sintesis e implementacion con las IP reales.
+
+
+## Validacion de entrada registrada
+
+input_invalid acumula en un registro las comparaciones de rango de cada
+palabra aceptada (ST_LOAD con data_in_valid=1). La FSM solo consulta ese
+registro; los datos crudos de FIFO ya no alimentan su decision de error.
+Las NTT siguen recibiendo las mismas palabras en los mismos ciclos. Ante
+una palabra invalida, se aborta y se reinician los nucleos internos mediante
+la secuencia ST_ERROR existente. ST_CHECK_LOAD agrega un ciclo despues de
+la ultima palabra para incluir su validacion antes de continuar.
+El registro de error se limpia con reset o al aceptar el siguiente start.
+
+El testbench prueba cada uno de los cuatro flujos con valor p invalido en
+las posiciones 0, 255 y 511, recuperacion sin reset y valores invalidos
+presentes durante huecos sin valid. Estos son 12 casos por primo ademas
+de los 16 casos completos contra el modelo matematico.
+
+
+## Acumulacion final en dos ciclos
+
+ST_SUM_TERMS registra add_mod(term_a, term_b) en term_sum.
+ST_ACCUMULATE calcula add_mod(r, term_sum) y avanza el indice como antes.
+La salida solo se publica tras acumular tambien el ultimo coeficiente.
+Esto agrega n ciclos por operacion (10,24 us para n=1024 a 100 MHz) y evita
+encadenar dos sumas modulares entre registros.
+
+
+La validacion se divide ahora en dos etapas: input_range_errors registra las
+cuatro comparaciones por separado (cero durante ciclos no aceptados), y
+input_invalid acumula esos bits en el ciclo siguiente. ST_DRAIN_LOAD espera
+la segunda etapa tras aceptar la ultima palabra; ST_CHECK_LOAD consulta luego
+el error acumulado. Se agrega un ciclo al final de la carga respecto a la
+validacion registrada de una sola etapa. No cambia el caudal de entrada.
+Reset y un nuevo start vacian ambos registros para impedir errores residuales.

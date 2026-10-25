@@ -46,12 +46,72 @@
  */
 
 #include <stdint.h>
+#include <string.h>
 #include "platform.h"
 #include "xil_printf.h"
 #include "hawk_params.h"
 #include "keygen.h"
 #include "hawk_sign.h"
 #include "hawk_verify.h"
+#include "hawk_fpga.h"
+
+static unsigned case_checks, case_failures;
+
+/* A transport failure must never count as a successfully rejected signature. */
+static void check_verify(const char *name, int result, int expected)
+{
+    case_checks++;
+    if (result == expected) {
+        xil_printf("  PASS: %s (result=%d)\r\n", name, result);
+    } else {
+        case_failures++;
+        xil_printf("  FAIL: %s (expected=%d, result=%d)\r\n",
+                   name, expected, result);
+    }
+}
+
+static void check_fpga(const char *name, const uint32_t *h0,
+                       const int32_t *q00, const int32_t *q01,
+                       const int32_t *w1, uint32_t expected_error)
+{
+    uint32_t error = 0xFFFFFFFFU;
+    int status = HawkFpgaVerify(h0, q00, q01, w1, &error);
+    case_checks++;
+    if (status == 0 && error == expected_error) {
+        xil_printf("  PASS: %s (verify_error=%lu)\r\n",
+                   name, (unsigned long)error);
+    } else {
+        case_failures++;
+        xil_printf("  FAIL: %s (status=%d, verify_error=%lu, expected=%lu)\r\n",
+                   name, status, (unsigned long)error,
+                   (unsigned long)expected_error);
+    }
+}
+
+/* Known polynomial vectors isolate PL rejection and status clearing. */
+static void check_fpga_errors(void)
+{
+    uint32_t h0[HAWK_N_WORDS32];
+    int32_t q00[HAWK_N], q01[HAWK_N], w1[HAWK_N];
+    memset(h0, 0, sizeof h0);
+    memset(q00, 0, sizeof q00);
+    memset(q01, 0, sizeof q01);
+    memset(w1, 0, sizeof w1);
+    q00[0] = 1;
+    w1[0] = 1;
+    check_fpga("PL valid impulse", h0, q00, q01, w1, 0U);
+    w1[0] = -1;
+    check_fpga("PL negative sym-break", h0, q00, q01, w1, 1U);
+    w1[0] = 1;
+    q00[0] = -1;
+    check_fpga("PL invalid q00", h0, q00, q01, w1, 1U);
+    q00[0] = 1;
+    w1[0] = 256;
+    /* Norm = 256^2 = 65536, above all three HAWK thresholds. */
+    check_fpga("PL excessive norm", h0, q00, q01, w1, 1U);
+    w1[0] = 1;
+    check_fpga("PL recovery after rejection", h0, q00, q01, w1, 0U);
+}
 
 /* Imprime sin reservar otro buffer del doble de tamano en la pila. */
 static void print_bytes(const char *name, const uint8_t *bytes, size_t length)
@@ -73,7 +133,11 @@ static int run_case(uint32_t n)
     uint8_t pub[HAWK_PUB_BYTES];
     uint8_t priv[HAWK_PRIV_BYTES];
     uint8_t sig[HAWK_SIG_BYTES];
+    uint8_t bad_sig[HAWK_SIG_BYTES], bad_pub[HAWK_PUB_BYTES];
     static const uint8_t message[] = "Hola HAWK";
+    static const uint8_t changed_message[] = "Hola HAWL";
+    case_checks = 0U;
+    case_failures = 0U;
 
     xil_printf("\r\n=== %s: n=%lu ===\r\n", HAWK_NAME, (unsigned long)HAWK_N);
     keygen(pub, priv);
@@ -91,16 +155,44 @@ static int run_case(uint32_t n)
 
     result = hawk_verify(sig, sizeof sig, pub, sizeof pub,
                          message, sizeof message - 1U);
-    if (result == 1) {
-        xil_printf("Signature verified successfully\r\n");
-        return 0;
+    check_verify("original signature", result, 1);
+    if (result != 1) {
+        return -1;
     }
-    if (result == 0) {
-        xil_printf("Signature verification failed\r\n");
-    } else {
-        xil_printf("Verification execution error: %d\r\n", result);
-    }
-    return -1;
+    xil_printf("Signature verified successfully\r\n");
+
+    xil_printf("Negative verification tests\r\n");
+    check_verify("altered message",
+        hawk_verify(sig, sizeof sig, pub, sizeof pub,
+                    changed_message, sizeof changed_message - 1U), 0);
+    memcpy(bad_sig, sig, sizeof bad_sig);
+    bad_sig[0] ^= 1U; /* Salt changes, but the encoding remains valid. */
+    check_verify("altered salt",
+        hawk_verify(bad_sig, sizeof bad_sig, pub, sizeof pub,
+                    message, sizeof message - 1U), 0);
+    memcpy(bad_sig, sig, sizeof bad_sig);
+    memset(bad_sig + HAWK_SALTLEN_BYTES, 0,
+           sizeof bad_sig - HAWK_SALTLEN_BYTES);
+    check_verify("malformed signature (PS)",
+        hawk_verify(bad_sig, sizeof bad_sig, pub, sizeof pub,
+                    message, sizeof message - 1U), 0);
+    check_verify("truncated signature (PS)",
+        hawk_verify(sig, sizeof sig - 1U, pub, sizeof pub,
+                    message, sizeof message - 1U), 0);
+    memset(bad_pub, 0, sizeof bad_pub);
+    check_verify("malformed public key (PS)",
+        hawk_verify(sig, sizeof sig, bad_pub, sizeof bad_pub,
+                    message, sizeof message - 1U), 0);
+    check_verify("truncated public key (PS)",
+        hawk_verify(sig, sizeof sig, pub, sizeof pub - 1U,
+                    message, sizeof message - 1U), 0);
+    check_fpga_errors();
+    check_verify("original signature after all errors",
+        hawk_verify(sig, sizeof sig, pub, sizeof pub,
+                    message, sizeof message - 1U), 1);
+    xil_printf("Checks: %u/%u passed\r\n",
+               case_checks - case_failures, case_checks);
+    return case_failures == 0U ? 0 : -1;
 }
 
 int main(void)

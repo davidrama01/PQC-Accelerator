@@ -35,7 +35,7 @@ begin
     begin
         dut : entity work.ntt(rtl)
             generic map (g_modulus => g_modulus)
-            port map (clk => clk, rst_n => rst_n, start => start,
+            port map (num_samples => 512, clk => clk, rst_n => rst_n, start => start,
                       data_in_valid => data_in_valid, data_in => data_in,
                       data_out => data_out, data_out_valid => data_out_valid, done => done);
 
@@ -113,7 +113,7 @@ begin
             end loop;
             data_in_valid <= '0';
             count := 0; finished := false;
-            for cycle in 0 to 100000 loop
+            for cycle in 0 to 1000000 loop
                 wait until rising_edge(clk);
                 wait for 1 ns;
                 assert not is_x(done) and not is_x(data_out_valid)

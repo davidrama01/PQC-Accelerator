@@ -54,8 +54,13 @@ architecture rtl of rebuild_s0 is
         ST_WAIT_FFT,
         ST_WAIT_FFT_2,
         ST_CAPTURE_FFT,
+        ST_MUL_FFT,
         ST_CALC_X,
         ST_WR_Q01,
+        ST_DIV_RE_START,
+        ST_DIV_RE_WAIT,
+        ST_DIV_IM_START,
+        ST_DIV_IM_WAIT,
         ST_COMMIT_Q01,
 
         -- Transferencia de qhat01 a la IFFT.
@@ -168,6 +173,9 @@ architecture rtl of rebuild_s0 is
     -- Reconstruccion de qhat01
     ---------------------------------------------------------------------------
 
+    -- Registered FFT operands, shared by the four complex products.
+    signal q01_re_operand, q01_im_operand : signed(g_data_width-1 downto 0);
+    signal w1_re_operand, w1_im_operand : signed(g_data_width-1 downto 0);
     signal prod_uu  : signed(2 * g_data_width - 1 downto 0);
     signal prod_nn  : signed(2 * g_data_width - 1 downto 0);
     signal prod_un  : signed(2 * g_data_width - 1 downto 0);
@@ -176,6 +184,8 @@ architecture rtl of rebuild_s0 is
     signal v    : signed(g_data_width downto 0);
     signal x_re : signed(2 * g_data_width downto 0);
     signal x_im : signed(2 * g_data_width downto 0);
+    signal div_start, div_done, div_zero : std_logic;
+    signal div_numerator, div_quotient : signed(2 * g_data_width downto 0);
 
     ---------------------------------------------------------------------------
     -- IFFT y almacenamiento temporal de t
@@ -281,6 +291,16 @@ architecture rtl of rebuild_s0 is
     end component;
 
 begin
+    div_start <= '1' when state = ST_DIV_RE_START or state = ST_DIV_IM_START else '0';
+    div_numerator <= x_im when state = ST_DIV_IM_START else x_re;
+    divider_inst : entity work.signed_divider
+        generic map (g_numerator_width => 2*g_data_width+1,
+                     g_denominator_width => g_data_width+1)
+        port map (clk => clk, rst_n => core_rst_n, start => div_start,
+                  numerator => div_numerator, denominator => v,
+                  quotient => div_quotient, busy => open, done => div_done,
+                  divide_by_zero => div_zero);
+
     c_bits_samples <= 8 when num_samples = 256 else 9 when num_samples = 512 else 10;
     c_w1_shift <= 28 - high_s1(num_samples);
     c_q00_shift <= 29 - high_q00(num_samples);
@@ -405,7 +425,10 @@ begin
                 next_state <= ST_CAPTURE_FFT;
 
             when ST_CAPTURE_FFT =>
-                -- dout ya es estable; los operandos se registran en este ciclo.
+                -- Register memory outputs before the multipliers.
+                next_state <= ST_MUL_FFT;
+
+            when ST_MUL_FFT =>
                 next_state <= ST_CALC_X;
 
             when ST_CALC_X =>
@@ -414,7 +437,7 @@ begin
 
             when ST_WR_Q01 =>
                 -- Comprueba las cotas antes de dividir. Si son validas, el
-                -- datapath calcula los dos componentes reconstruidos.
+                -- divisor secuencial calcula despues ambos componentes.
                 if v <= 0 then
                     next_state <= ST_ERROR;
                 elsif v >= shift_left(to_signed(1, v'length), 30) then
@@ -424,7 +447,22 @@ begin
                 elsif abs(x_im) >= shift_left(resize(v, x_im'length), 32) then
                     next_state <= ST_ERROR;
                 else
-                    next_state <= ST_COMMIT_Q01;
+                    next_state <= ST_DIV_RE_START;
+                end if;
+
+            when ST_DIV_RE_START =>
+                next_state <= ST_DIV_RE_WAIT;
+            when ST_DIV_RE_WAIT =>
+                if div_done = '1' then
+                    if div_zero = '1' then next_state <= ST_ERROR;
+                    else next_state <= ST_DIV_IM_START; end if;
+                end if;
+            when ST_DIV_IM_START =>
+                next_state <= ST_DIV_IM_WAIT;
+            when ST_DIV_IM_WAIT =>
+                if div_done = '1' then
+                    if div_zero = '1' then next_state <= ST_ERROR;
+                    else next_state <= ST_COMMIT_Q01; end if;
                 end if;
 
             when ST_COMMIT_Q01 =>
@@ -515,6 +553,10 @@ begin
     begin
         if rising_edge(clk) then
             if rst_n = '0' then
+                q01_re_operand <= (others => '0');
+                q01_im_operand <= (others => '0');
+                w1_re_operand <= (others => '0');
+                w1_im_operand <= (others => '0');
                 prod_uu <= (others => '0');
                 prod_un <= (others => '0');
                 prod_nu <= (others => '0');
@@ -646,14 +688,18 @@ begin
                     null;
 
                 when ST_CAPTURE_FFT =>
-                    -- Producto complejo qhat01[u] * what1[u]. Los indices de
-                    -- la segunda mitad representan las componentes imaginarias.
-                    prod_uu <= signed(q01_douta) * signed(w1_douta);
-                    prod_un <= signed(q01_douta) * signed(w1_doutb);
-                    prod_nu <= signed(q01_doutb) * signed(w1_douta);
-                    prod_nn <= signed(q01_doutb) * signed(w1_doutb);
-
+                    q01_re_operand <= signed(q01_douta);
+                    q01_im_operand <= signed(q01_doutb);
+                    w1_re_operand <= signed(w1_douta);
+                    w1_im_operand <= signed(w1_doutb);
                     v <= resize(alpha, v'length) + resize(signed(q00_douta), v'length);
+
+                when ST_MUL_FFT =>
+                    -- Complex product from registered inputs, not memory outputs.
+                    prod_uu <= q01_re_operand * w1_re_operand;
+                    prod_un <= q01_re_operand * w1_im_operand;
+                    prod_nu <= q01_im_operand * w1_re_operand;
+                    prod_nn <= q01_im_operand * w1_im_operand;
 
                 when ST_CALC_X =>
                     -- X_re = q01_re*w1_re - q01_im*w1_im.
@@ -676,11 +722,15 @@ begin
                         error_flag <= '1';
                     elsif abs(x_im) >= shift_left(resize(v, x_im'length), 32) then
                         error_flag <= '1';
-                    else
-                        q01_a <= std_logic_vector(
-                            resize(x_re / resize(v, x_re'length), q01_a'length));
-                        q01_b <= std_logic_vector(
-                            resize(x_im / resize(v, x_im'length), q01_b'length));
+                    end if;
+
+                when ST_DIV_RE_WAIT =>
+                    if div_done = '1' then
+                        q01_a <= std_logic_vector(resize(div_quotient, q01_a'length));
+                    end if;
+                when ST_DIV_IM_WAIT =>
+                    if div_done = '1' then
+                        q01_b <= std_logic_vector(resize(div_quotient, q01_b'length));
                     end if;
 
                 when ST_COMMIT_Q01 =>

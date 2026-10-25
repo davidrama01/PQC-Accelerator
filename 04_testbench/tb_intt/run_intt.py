@@ -12,12 +12,12 @@ HEADER = 'library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;\n
 RAM = HEADER + '''
 entity blk_mem_gen_1 is
 port(clka,ena: in std_logic; wea: in std_logic_vector(0 downto 0);
-addra: in std_logic_vector(8 downto 0); dina: in std_logic_vector(31 downto 0);
+addra: in std_logic_vector(9 downto 0); dina: in std_logic_vector(31 downto 0);
 douta: out std_logic_vector(31 downto 0); clkb,enb: in std_logic;
-web: in std_logic_vector(0 downto 0); addrb: in std_logic_vector(8 downto 0);
+web: in std_logic_vector(0 downto 0); addrb: in std_logic_vector(9 downto 0);
 dinb: in std_logic_vector(31 downto 0); doutb: out std_logic_vector(31 downto 0)); end;
 architecture model of blk_mem_gen_1 is
-type memory_t is array(0 to 511) of std_logic_vector(31 downto 0);
+type memory_t is array(0 to 1023) of std_logic_vector(31 downto 0);
 signal mem: memory_t;
 signal qa,qb: std_logic_vector(31 downto 0);
 begin
@@ -89,15 +89,15 @@ def main():
     # select the right component, not a test-side swap of its contents.
     for rom_name, component in [('p1', 'blk_mem_gen_3'), ('p2', 'blk_mem_gen_4'),
                                 ('inv_p1', 'blk_mem_gen_5'), ('inv_p2', 'blk_mem_gen_6')]:
-        coe = (ROOT/f'05_software/rom/gamma_{rom_name}_n512.coe').read_text()
+        coe = (ROOT/f'05_software/rom/gamma_{rom_name}_n1024.coe').read_text()
         words = re.findall(r'[0-9a-fA-F]{8}', coe.split('memory_initialization_vector=')[1])
-        assert len(words) == 512
+        assert len(words) == 1024
         rom = HEADER + '''
 entity blk_mem_gen_3 is
-port(clka,ena: in std_logic; addra: in std_logic_vector(8 downto 0);
+port(clka,ena: in std_logic; addra: in std_logic_vector(9 downto 0);
 douta: out std_logic_vector(31 downto 0)); end;
 architecture model of blk_mem_gen_3 is
-type rom_t is array(0 to 511) of std_logic_vector(31 downto 0);
+type rom_t is array(0 to 1023) of std_logic_vector(31 downto 0);
 constant rom: rom_t := (''' + ','.join(f'x"{x}"' for x in words) + ''');
 signal q: std_logic_vector(31 downto 0);
 begin
@@ -116,9 +116,9 @@ end process; end;
     if args.ram_ip:
         run('xvlog', '--work', 'work', args.ram_ip.resolve())
         libraries = ['-L', 'blk_mem_gen_v8_4_5']
-    run('xvhdl', '--2008', work/'models.vhd', ROOT/'03_design/ntt.vhd', ROOT/'03_design/intt.vhd', HERE/'intt_tb.vhd')
+    run('xvhdl', '--2008', work/'models.vhd', ROOT/'03_design/hawk_pkg.vhd', ROOT/'03_design/mod_reducer.vhd', ROOT/'03_design/ntt.vhd', ROOT/'03_design/intt.vhd', HERE/'intt_tb.vhd')
     run('xelab', '--relax', *libraries, 'work.intt_tb', '-s', 'intt_test')
-    (work/'run.tcl').write_text('run 10 ms\nquit\n')
+    (work/'run.tcl').write_text('run 150 ms\nquit\n')
     run('xsim', 'intt_test', '-tclbatch', 'run.tcl')
     log = (work/'xsim.log').read_text()
     if 'INTT: P1 y P2, todas las pruebas superadas' not in log or 'Failure:' in log or 'Fatal:' in log:

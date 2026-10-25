@@ -5,6 +5,8 @@ The project is only read. Files/logs are generated in a temporary directory.
 import argparse
 from pathlib import Path
 import random
+import re
+import sys
 import shutil
 import subprocess
 import tempfile
@@ -74,8 +76,9 @@ def make_vectors(path, p, g):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--project',type=Path,default=Path('C:/David/TFM/project_1'))
+    parser.add_argument('--project',type=Path,default=ROOT/'02_project/hawk_acc')
     parser.add_argument('--vivado-bin',type=Path,default=Path('C:/Xilinx/Vivado/2022.1/bin'))
+    parser.add_argument('--models', action='store_true', help='Use behavioral RAM/ROM with 1024-word Gamma tables')
     parser.add_argument('--vectors-only',action='store_true')
     args=parser.parse_args()
     work=HERE if args.vectors_only else Path(tempfile.mkdtemp(prefix='hawk-polyqnorm-'))
@@ -85,21 +88,49 @@ def main():
     if args.vectors_only: return
     def run(tool,*params):
         subprocess.run([str(args.vivado_bin/(tool+'.bat')),*map(str,params)],cwd=work,check=True)
-    ip_root=args.project/(args.project.name+'.gen')/'sources_1/ip'
-    sources=[]
-    for ip in ('blk_mem_gen_1','blk_mem_gen_3','blk_mem_gen_4'):
-        sources.append(ip_root/ip/'sim'/f'{ip}.v')
-        for mif in (ip_root/ip).rglob('*.mif'):
-            shutil.copyfile(mif,work/mif.name)
-    run('xvlog','--work','work',*sources)
-    run('xvhdl','--2008',ROOT/'03_design/ntt.vhd',ROOT/'03_design/polyqnorm.vhd',HERE/'polyqnorm_tb.vhd')
+    if args.models:
+        sys.path.insert(0, str(HERE.parent/'tb_rebuild_s0'))
+        from run_standalone import MODELS, HEADER
+        models = MODELS
+        for name, component in [('p1','blk_mem_gen_3'),('p2','blk_mem_gen_4')]:
+            coe=(ROOT/f'05_software/rom/gamma_{name}_n1024.coe').read_text()
+            words=re.findall(r'[0-9a-fA-F]{8}',coe.split('memory_initialization_vector=')[1])
+            assert len(words)==1024
+            models += HEADER + f"""
+entity {component} is
+port(clka,ena: in std_logic; addra: in std_logic_vector(9 downto 0);
+douta: out std_logic_vector(31 downto 0)); end;
+architecture model of {component} is
+type rom_t is array(0 to 1023) of std_logic_vector(31 downto 0);
+constant rom: rom_t := (""" + ','.join(f'x"{w}"' for w in words) + """);
+signal q: std_logic_vector(31 downto 0);
+begin
+process(clka) begin
+if rising_edge(clka) then
+if ena='1' then q<=rom(to_integer(unsigned(addra))); douta<=q; end if;
+end if;
+end process; end;
+"""
+        (work/'models.vhd').write_text(models)
+        run('xvhdl','--2008',work/'models.vhd')
+    else:
+        ip_root=args.project/(args.project.name+'.gen')/'sources_1/ip'
+        if not (ip_root/'blk_mem_gen_1/sim/blk_mem_gen_1.v').is_file():
+            ip_root = args.project/(args.project.name+'.gen')/'sources_1/bd/hawk_acc/ip/hawk_acc_hawk_acc_0_0/src'
+        sources=[]
+        for ip in ('blk_mem_gen_1','blk_mem_gen_3','blk_mem_gen_4'):
+            sources.append(ip_root/ip/'sim'/f'{ip}.v')
+            for mif in (ip_root/ip).rglob('*.mif'):
+                shutil.copyfile(mif,work/mif.name)
+        run('xvlog','--work','work',*sources)
+    run('xvhdl','--2008',ROOT/'03_design/hawk_pkg.vhd',ROOT/'03_design/mod_reducer.vhd',ROOT/'03_design/ntt.vhd',ROOT/'03_design/polyqnorm.vhd',HERE/'polyqnorm_tb.vhd')
     run('xelab','--relax','-L','blk_mem_gen_v8_4_5','work.polyqnorm_tb','-s','polyqnorm_test')
-    (work/'run.tcl').write_text('run 30 ms\nquit\n')
+    (work/'run.tcl').write_text('run 500 ms\nquit\n')
     run('xsim','polyqnorm_test','-tclbatch','run.tcl')
     log=(work/'xsim.log').read_text()
     if 'PolyQnorm: P1 y P2 superados' not in log or 'Failure:' in log or 'Fatal:' in log:
         raise RuntimeError(f'Validation failed: {work}')
-    print('PASS: 16 cases with Xilinx RAM/Gamma ROM IP, both primes',flush=True)
+    print('PASS: 16 cases, both primes; ' + ('behavioral memory models' if args.models else 'Xilinx memory IP'),flush=True)
 
 
 if __name__=='__main__': main()

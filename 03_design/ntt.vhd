@@ -65,6 +65,7 @@ architecture rtl of ntt is
         ST_CAPTURE_U,
         ST_MUL,
         ST_TRANSFORM,
+        ST_REDUCE_WAIT,
         ST_WR_U,
         ST_COMMIT_U,
         ST_RD_NTT_INIT,
@@ -118,6 +119,8 @@ architecture rtl of ntt is
     signal u1         : unsigned(g_data_width - 1 downto 0);
     signal su1        : unsigned(g_data_width - 1 downto 0);
     signal prod_gamma : unsigned(2 * g_data_width - 1 downto 0);
+    signal reduce_start, reduce_done : std_logic;
+    signal reduced_value : unsigned(g_data_width-1 downto 0);
     signal rom_enable : std_logic;
 
     component blk_mem_gen_1
@@ -160,6 +163,13 @@ architecture rtl of ntt is
     end component;
 
 begin
+    reduce_start <= '1' when state = ST_TRANSFORM else '0';
+    reducer_inst : entity work.mod_reducer
+        generic map (g_input_width => 2*g_data_width,
+                     g_result_width => g_data_width, g_modulus => g_modulus)
+        port map (clk => clk, rst_n => rst_n, start => reduce_start,
+                  data_in => prod_gamma, residue => reduced_value,
+                  busy => open, done => reduce_done);
 
     data_out_valid <= data_out_valid_reg;
     data_out <= data_out_reg;
@@ -241,7 +251,12 @@ begin
                 next_state <= ST_TRANSFORM;
 
             when ST_TRANSFORM =>
-                next_state <= ST_WR_U;
+                next_state <= ST_REDUCE_WAIT;
+
+            when ST_REDUCE_WAIT =>
+                if reduce_done = '1' then
+                    next_state <= ST_WR_U;
+                end if;
 
             when ST_WR_U =>
                 next_state <= ST_COMMIT_U;
@@ -366,12 +381,11 @@ begin
                         -- actual. Se conservan los 64 bits antes de reducir.
                         prod_gamma <= gamma * u1;
 
-                    when ST_TRANSFORM =>
-                        -- su1 = s*u1 mod p. Primero reduce el producto ancho
-                        -- y despues ajusta el resultado al ancho del dato.
-                        -- mod expresa la reduccion por constante; no es una
-                        -- multiplicacion Montgomery ni una operacion Q31.
-                        su1 <= resize(prod_gamma mod resize(C_P, prod_gamma'length), su1'length);
+                    when ST_REDUCE_WAIT =>
+                        -- Exact modular residue from the sequential reducer.
+                        if reduce_done = '1' then
+                            su1 <= reduced_value;
+                        end if;
 
                     when ST_WR_U =>
                         -- Prepara los dos resultados; la RAM se escribira

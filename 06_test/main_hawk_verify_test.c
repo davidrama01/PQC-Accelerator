@@ -15,7 +15,8 @@ static unsigned tx_count, rx_count, status_reads, start_count, busy_reads;
 static uint32_t mode, size_reg, result_error;
 static UINTPTR flushed_address;
 static unsigned flushed_length;
-static int submitted, signing;
+static int submitted, signing, receiving_s1;
+static unsigned s1_busy_reads;
 static const uint32_t *expected_packet;
 
 static void reset_mock(enum fault_t value)
@@ -27,7 +28,8 @@ static void reset_mock(enum fault_t value)
     result_error = 0U;
     flushed_address = 0U;
     flushed_length = 0U;
-    submitted = signing = 0;
+    submitted = signing = receiving_s1 = 0;
+    s1_busy_reads = 0U;
     expected_packet = expected_packets[0];
 }
 
@@ -53,6 +55,9 @@ int XAxiDma_HasSg(XAxiDma *dma)
 int XAxiDma_Busy(XAxiDma *dma, unsigned direction)
 {
     (void)dma;
+    if (receiving_s1 && direction == XAXIDMA_DEVICE_TO_DMA) {
+        return s1_busy_reads++ < 2U;
+    }
     if ((fault == BUSY_TX && direction == XAXIDMA_DMA_TO_DEVICE) ||
         (fault == BUSY_RX && direction == XAXIDMA_DEVICE_TO_DMA)) {
         return 1;
@@ -81,8 +86,16 @@ int XAxiDma_SimpleTransfer(XAxiDma *dma, UINTPTR address, unsigned length,
     assert((address & 63U) == 0U);
     if (direction == XAXIDMA_DEVICE_TO_DMA) {
         assert(signing && mode == 0U);
-        assert(length == 2U * HAWK_N_WORDS32 * sizeof(uint32_t));
-        memset((void *)address, 0, length);
+        if (receiving_s1) {
+            assert(length == HAWK_N * sizeof(int32_t));
+            int32_t *words = (int32_t *)address;
+            for (size_t i = 0U; i < HAWK_N; i++) {
+                words[i] = (i & 1U) ? -(int32_t)i : (int32_t)i;
+            }
+        } else {
+            assert(length == 2U * HAWK_N_WORDS32 * sizeof(uint32_t));
+            memset((void *)address, 0, length);
+        }
         rx_count++;
         return XST_SUCCESS;
     }
@@ -165,7 +178,7 @@ int main(void)
 #endif
     uint8_t bad_sig[HAWK_SIG_BYTES], bad_pub[HAWK_PUB_BYTES];
     const enum fault_t failures[] = {LOOKUP, INITIALIZE, SCATTER_GATHER,
-        BUSY_TX, BUSY_RX, SUBMIT, DMA_ERROR, DMA_TIMEOUT, RESULT_TIMEOUT};
+        BUSY_TX, SUBMIT, DMA_ERROR, DMA_TIMEOUT, RESULT_TIMEOUT};
     uint32_t h0[HAWK_N_WORDS32], error;
     int32_t polynomial[HAWK_N];
     memset(h0, 0, sizeof h0);
@@ -185,6 +198,12 @@ int main(void)
         assert(verify_case(0U) == -3);
         assert(rx_count == 0U);
     }
+
+    /* Verify reads its result from AXI-Lite and never submits S2MM.
+       A busy receive channel must therefore not reject a valid verify. */
+    reset_mock(BUSY_RX);
+    assert(verify_case(0U) == 1);
+    assert(rx_count == 0U);
 
     reset_mock(NONE);
     memcpy(bad_sig, signature, sizeof bad_sig);
@@ -218,6 +237,17 @@ int main(void)
     signing = 1;
     assert(HawkFpgaCalculateT(h0, h0, h0, h0, polynomial, polynomial, h0, h0) == 0);
     assert(mode == 0U && tx_count == 1U && rx_count == 1U);
+    /* Last signing DMA transaction: n signed words, no truncation, and
+       completion must be polled before the receive buffer is copied. */
+    receiving_s1 = 1;
+    s1_busy_reads = 0U;
+    assert(HawkFpgaReceiveS1(polynomial) == 0);
+    assert(s1_busy_reads >= 3U && rx_count == 2U);
+    for (size_t i = 0U; i < HAWK_N; i++) {
+        assert(polynomial[i] == ((i & 1U) ? -(int32_t)i : (int32_t)i));
+    }
+    printf("PASS: S1 DMA n=%u, %u bytes, signed data and completion polling\n",
+           (unsigned)HAWK_N, (unsigned)(HAWK_N * sizeof(int32_t)));
     printf("PASS: hawk_verify %s, hashlib packets, AXI/DMA protocol and failures\n",
            HAWK_NAME);
     return 0;

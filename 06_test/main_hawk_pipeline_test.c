@@ -285,6 +285,22 @@ int HawkFpgaVerify(const uint32_t *h0, const int32_t *q00, const int32_t *q01,
         verified_norm = r1 / HAWK_N;
         if (check_norm) {
             assert(verified_norm == sampled_norm);
+            const char *directory = getenv("HAWK_VECTOR_DIR");
+            if (directory != NULL) {
+                static unsigned vector_index;
+                char path[1024];
+                int length = snprintf(path, sizeof path, "%s/verify_%u_%u.txt",
+                                      directory, (unsigned)HAWK_N, vector_index++);
+                assert(length > 0 && (size_t)length < sizeof path);
+                FILE *output = fopen(path, "w");
+                assert(output != NULL);
+                fprintf(output, "%u %u %u\n", (unsigned)HAWK_N, r1, r2);
+                for (size_t i = 0; i < HAWK_N_WORDS32; i++) fprintf(output, "%u\n", h0[i]);
+                const int32_t *vectors[] = {q00, q01, w1, w0};
+                for (unsigned k = 0; k < 4; k++)
+                    for (size_t i = 0; i < HAWK_N; i++) fprintf(output, "%d\n", vectors[k][i]);
+                assert(fclose(output) == 0);
+            }
         }
         *error = verified_norm > threshold;
     }
@@ -335,9 +351,9 @@ int main(void)
         sig[HAWK_SIG_BYTES-1U] |= 0x80U;
         assert(hawk_verify(sig, sizeof sig, pub, sizeof pub, message, length) == 0);
     }
-    printf("RTL AUDIT %s: %u/3 valid signatures rejected by current arithmetic/constants model\n",
+    printf("HISTORICAL RTL AUDIT %s: %u/3 rejected by the OLD arithmetic/constants model\n",
            HAWK_NAME, rtl_rejections);
-    printf("RTL CONSTANTS AUDIT %s: %u/3 rejected after correcting only RebuildS0 rounding\n",
+    printf("HISTORICAL CONSTANTS AUDIT %s: %u/3 rejected after correcting only OLD RebuildS0 rounding\n",
            HAWK_NAME, constants_rejections);
     printf("PASS pipeline %s (mathematical accelerator backend)\n", HAWK_NAME);
     return 0;

@@ -61,6 +61,7 @@ architecture rtl of intt is
         ST_ADD_SUB,
         ST_MUL,
         ST_TRANSFORM,
+        ST_REDUCE_WAIT,
         ST_WR_U,
         ST_COMMIT_U,
         ST_RD_INTT_INIT,
@@ -116,6 +117,8 @@ architecture rtl of intt is
     signal u1          : unsigned(g_data_width - 1 downto 0);
     signal scaled_diff : unsigned(g_data_width - 1 downto 0);
     signal prod_gamma  : unsigned(2 * g_data_width - 1 downto 0);
+    signal reduce_start, reduce_done : std_logic;
+    signal reduced_value : unsigned(g_data_width-1 downto 0);
     signal rom_enable  : std_logic;
 
     component blk_mem_gen_1
@@ -170,6 +173,13 @@ architecture rtl of intt is
     end function half_mod;
 
 begin
+    reduce_start <= '1' when state = ST_TRANSFORM else '0';
+    reducer_inst : entity work.mod_reducer
+        generic map (g_input_width => 2*g_data_width,
+                     g_result_width => g_data_width, g_modulus => g_modulus)
+        port map (clk => clk, rst_n => rst_n, start => reduce_start,
+                  data_in => prod_gamma, residue => reduced_value,
+                  busy => open, done => reduce_done);
 
     data_out_valid <= data_out_valid_reg;
     data_out <= data_out_reg;
@@ -254,7 +264,12 @@ begin
                 next_state <= ST_TRANSFORM;
 
             when ST_TRANSFORM =>
-                next_state <= ST_WR_U;
+                next_state <= ST_REDUCE_WAIT;
+
+            when ST_REDUCE_WAIT =>
+                if reduce_done = '1' then
+                    next_state <= ST_WR_U;
+                end if;
 
             when ST_WR_U =>
                 next_state <= ST_COMMIT_U;
@@ -396,9 +411,11 @@ begin
                         -- grupo. Conserva el producto completo de 64 bits.
                         prod_gamma <= gamma * diff_mod;
 
-                    when ST_TRANSFORM =>
-                        -- Reduccion modular ordinaria, sin escalado Montgomery.
-                        scaled_diff <= resize(prod_gamma mod resize(C_P, prod_gamma'length), scaled_diff'length);
+                    when ST_REDUCE_WAIT =>
+                        -- Exact modular residue from the sequential reducer.
+                        if reduce_done = '1' then
+                            scaled_diff <= reduced_value;
+                        end if;
 
                     when ST_WR_U =>
                         -- Normaliza ambas ramas por 2 en el cuerpo finito.
