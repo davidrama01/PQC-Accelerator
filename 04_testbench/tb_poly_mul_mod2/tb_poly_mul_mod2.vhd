@@ -1,6 +1,7 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
+use work.hawk_pkg.all;
 use IEEE.STD_LOGIC_TEXTIO.ALL;
 use STD.TEXTIO.ALL;
 
@@ -12,18 +13,15 @@ architecture rtl of tb_poly_mul_mod2 is
 
     -- Component declaration
     component poly_mul_mod2
-        generic (
-            g_num_samples : integer := 32;
-            g_num_phases : integer := 8
-        );
         port (
+            num_samples : in integer range 1 to c_max_samples := c_num_samples;
             clk : in std_logic;
             rst_n : in std_logic;
             start : in std_logic;
             done : out std_logic;
-            data_a : in std_logic_vector(g_num_samples - 1 downto 0);
-            data_b : in std_logic_vector(g_num_samples - 1 downto 0);
-            result : out std_logic_vector(g_num_samples - 1 downto 0)
+            data_a : in std_logic_vector(c_max_samples - 1 downto 0);
+            data_b : in std_logic_vector(c_max_samples - 1 downto 0);
+            result : out std_logic_vector(c_max_samples - 1 downto 0)
         );
     end component;
 
@@ -33,9 +31,9 @@ architecture rtl of tb_poly_mul_mod2 is
     signal rst_n : std_logic := '0';
     signal start : std_logic := '0';
     signal done : std_logic;
-    signal data_a : std_logic_vector(31 downto 0) := (others => '0');
-    signal data_b : std_logic_vector(31 downto 0) := (others => '0');
-    signal result : std_logic_vector(31 downto 0);
+    signal data_a : std_logic_vector(c_max_samples - 1 downto 0) := (others => '0');
+    signal data_b : std_logic_vector(c_max_samples - 1 downto 0) := (others => '0');
+    signal result : std_logic_vector(c_max_samples - 1 downto 0);
     
     -- CSV reading function
 function read_vector_from_csv(line_str : string; field : integer)
@@ -80,10 +78,8 @@ end function;
 begin
     -- Instantiate UUT
     dut: poly_mul_mod2
-        generic map (
-            g_num_samples => 32, 
-            g_num_phases => 8
-        ) port map (
+        port map (
+            num_samples => N,
             clk => clk,
             rst_n => rst_n,
             start => start,
@@ -141,8 +137,8 @@ begin
                 exp_result := read_vector_from_csv(line_str(1 to line_len), 2);
 
                 -- Load inputs into DUT
-                data_a <= a_vec;
-                data_b <= b_vec;
+                data_a <= std_logic_vector(resize(unsigned(a_vec), c_max_samples));
+                data_b <= std_logic_vector(resize(unsigned(b_vec), c_max_samples));
                 wait for 10 ns;
 
                 -- Activate start signal
@@ -155,7 +151,7 @@ begin
                 wait for 100 ns;
 
                 -- Verify result
-                if result = exp_result then
+                if unsigned(result) = resize(unsigned(exp_result), c_max_samples) then
                     report "Test " & integer'image(test_count) & " PASSED" severity note;
                     pass_count := pass_count + 1;
                 else

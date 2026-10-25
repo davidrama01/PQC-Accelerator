@@ -11,30 +11,49 @@
 #define HAWK_FPGA_DMA_ID        XPAR_AXI_DMA_0_DEVICE_ID
 #define HAWK_FPGA_AXI_ADDR      XPAR_HAWK_ACC_0_S00_AXI_BASEADDR
 #define HAWK_FPGA_START_OFFSET  HAWK_ACC_S00_AXI_SLV_REG0_OFFSET
+#define HAWK_FPGA_VERIFY_OFFSET 0x0CU
+#define HAWK_FPGA_MODE_OFFSET   0x10U
+#define HAWK_FPGA_SIZE_OFFSET   0x14U
+#define HAWK_FPGA_VERIFY_DONE   0x02U
+#define HAWK_FPGA_VERIFY_ERROR  0x01U
 
 #define HAWK_FPGA_INPUT_WORDS   (4U * HAWK_N_WORDS32 + 2U * HAWK_N)
 #define HAWK_FPGA_X_WORDS       (2U * HAWK_N)
 #define HAWK_FPGA_T_OUTPUT_WORDS (2U * HAWK_N_WORDS32)
 #define HAWK_FPGA_RX_WORDS      HAWK_N
+#define HAWK_FPGA_VERIFY_WORDS  (HAWK_N_WORDS32 + 3U * HAWK_N)
+#ifndef HAWK_FPGA_DMA_TIMEOUT
 #define HAWK_FPGA_DMA_TIMEOUT   100000000U
+#endif
+#ifndef HAWK_FPGA_VERIFY_TIMEOUT
+#define HAWK_FPGA_VERIFY_TIMEOUT 100000000U
+#endif
 
 static XAxiDma hawk_dma;
 
-static int32_t hawk_tx_buffer[HAWK_FPGA_INPUT_WORDS]
+static int32_t hawk_tx_buffer[4U * (HAWK_MAX_N / 32U) + 2U * HAWK_MAX_N]
     __attribute__((aligned(64)));
-static uint32_t hawk_rx_buffer[HAWK_FPGA_RX_WORDS]
+static uint32_t hawk_rx_buffer[HAWK_MAX_N]
+    __attribute__((aligned(64)));
+static int32_t hawk_verify_tx_buffer[HAWK_MAX_N / 32U + 3U * HAWK_MAX_N]
     __attribute__((aligned(64)));
 
 static int WaitForDma(unsigned direction)
 {
     uint32_t timeout = HAWK_FPGA_DMA_TIMEOUT;
 
-    while (XAxiDma_Busy(&hawk_dma, direction)) {
+    for (;;) {
+        if ((XAxiDma_IntrGetIrq(&hawk_dma, direction) &
+              XAXIDMA_IRQ_ERROR_MASK) != 0U) {
+            return -1;
+        }
+        if (!XAxiDma_Busy(&hawk_dma, direction)) {
+            return 0;
+        }
         if (--timeout == 0U) {
             return -1;
         }
     }
-    return 0;
 }
 
 static void PrintPolynomialMod2(const char *name,
@@ -217,11 +236,11 @@ int HawkFpgaReceiveS1(int32_t s1[HAWK_N])
     }
 
     Xil_DCacheInvalidateRange((UINTPTR)hawk_rx_buffer,
-                              sizeof hawk_rx_buffer);
+                              (HAWK_FPGA_RX_WORDS * sizeof(hawk_rx_buffer[0])));
 
     status = XAxiDma_SimpleTransfer(&hawk_dma,
                                     (UINTPTR)hawk_rx_buffer,
-                                    sizeof hawk_rx_buffer,
+                                    (HAWK_FPGA_RX_WORDS * sizeof(hawk_rx_buffer[0])),
                                     XAXIDMA_DEVICE_TO_DMA);
     if (status != XST_SUCCESS) {
         return -2;
@@ -232,7 +251,7 @@ int HawkFpgaReceiveS1(int32_t s1[HAWK_N])
     }
 
     Xil_DCacheInvalidateRange((UINTPTR)hawk_rx_buffer,
-                              sizeof hawk_rx_buffer);
+                              (HAWK_FPGA_RX_WORDS * sizeof(hawk_rx_buffer[0])));
     memcpy(s1, hawk_rx_buffer, HAWK_N * sizeof(*s1));
 
     return 0;
@@ -264,8 +283,12 @@ int HawkFpgaCalculateT(const uint32_t h0[HAWK_N_WORDS32],
         return -3;
     }
 
+    /* La operacion anterior puede haber sido una verificacion. */
+    HAWK_ACC_mWriteReg(HAWK_FPGA_AXI_ADDR, HAWK_FPGA_MODE_OFFSET, 0U);
+    HAWK_ACC_mWriteReg(HAWK_FPGA_AXI_ADDR, HAWK_FPGA_SIZE_OFFSET, HAWK_N);
+
     BuildInputBuffer(h0, h1, F_mod2, G_mod2, f, g);
-    Xil_DCacheFlushRange((UINTPTR)hawk_tx_buffer, sizeof hawk_tx_buffer);
+    Xil_DCacheFlushRange((UINTPTR)hawk_tx_buffer, (HAWK_FPGA_INPUT_WORDS * sizeof(hawk_tx_buffer[0])));
     Xil_DCacheInvalidateRange(
         (UINTPTR)hawk_rx_buffer,
         HAWK_FPGA_T_OUTPUT_WORDS * sizeof(hawk_rx_buffer[0]));
@@ -275,7 +298,7 @@ int HawkFpgaCalculateT(const uint32_t h0[HAWK_N_WORDS32],
     /* Preparar primero MM2S para enviar las entradas a la FPGA. */
     status = XAxiDma_SimpleTransfer(&hawk_dma,
                                     (UINTPTR)hawk_tx_buffer,
-                                    sizeof hawk_tx_buffer,
+                                    (HAWK_FPGA_INPUT_WORDS * sizeof(hawk_tx_buffer[0])),
                                     XAXIDMA_DMA_TO_DEVICE);
     if (status != XST_SUCCESS) {
         return -4;
@@ -313,4 +336,72 @@ int HawkFpgaCalculateT(const uint32_t h0[HAWK_N_WORDS32],
     VerifyT(t0, t1, expected_t0, expected_t1);
 
     return 0;
+}
+
+/* Keep the public verification return codes while exposing transport failures. */
+static int VerifyTransportError(int status, const char *stage)
+{
+    xil_printf("HawkFpgaVerify: error %d (%s)\r\n", status, stage);
+    return status;
+}
+
+int HawkFpgaVerify(const uint32_t h0[HAWK_N_WORDS32],
+                   const int32_t q00[HAWK_N],
+                   const int32_t q01[HAWK_N],
+                   const int32_t w1[HAWK_N],
+                   uint32_t *error)
+{
+    size_t offset = 0U;
+    uint32_t timeout = HAWK_FPGA_VERIFY_TIMEOUT;
+    uint32_t last_status = 0U;
+
+    if (error == NULL) {
+        return VerifyTransportError(-1, "invalid arguments");
+    }
+    *error = 1U;
+    if (h0 == NULL || q00 == NULL || q01 == NULL || w1 == NULL) {
+        return VerifyTransportError(-1, "invalid arguments");
+    }
+    if (HawkFpgaInit() != 0 || XAxiDma_HasSg(&hawk_dma)) {
+        return VerifyTransportError(-2, "DMA initialization or scatter-gather configuration");
+    }
+    // if (XAxiDma_Busy(&hawk_dma, XAXIDMA_DMA_TO_DEVICE) ||
+    //     XAxiDma_Busy(&hawk_dma, XAXIDMA_DEVICE_TO_DMA)) {
+    //     return VerifyTransportError(-3, "DMA still busy before verification");
+    // }
+
+    memcpy(hawk_verify_tx_buffer, h0, HAWK_N_WORDS32 * sizeof(*h0));
+    offset += HAWK_N_WORDS32;
+    memcpy(hawk_verify_tx_buffer + offset, q00, HAWK_N * sizeof(*q00));
+    offset += HAWK_N;
+    memcpy(hawk_verify_tx_buffer + offset, q01, HAWK_N * sizeof(*q01));
+    offset += HAWK_N;
+    memcpy(hawk_verify_tx_buffer + offset, w1, HAWK_N * sizeof(*w1));
+    Xil_DCacheFlushRange((UINTPTR)hawk_verify_tx_buffer, (HAWK_FPGA_VERIFY_WORDS * sizeof(hawk_verify_tx_buffer[0])));
+
+    HAWK_ACC_mWriteReg(HAWK_FPGA_AXI_ADDR, HAWK_FPGA_MODE_OFFSET, 1U);
+    HAWK_ACC_mWriteReg(HAWK_FPGA_AXI_ADDR, HAWK_FPGA_SIZE_OFFSET, HAWK_N);
+    /* Start captura el tamano y borra el resultado anterior en el RTL. */
+    HAWK_ACC_mWriteReg(HAWK_FPGA_AXI_ADDR, HAWK_FPGA_START_OFFSET, 1U);
+    if (XAxiDma_SimpleTransfer(&hawk_dma, (UINTPTR)hawk_verify_tx_buffer,
+                               (HAWK_FPGA_VERIFY_WORDS * sizeof(hawk_verify_tx_buffer[0])),
+                               XAXIDMA_DMA_TO_DEVICE) != XST_SUCCESS) {
+        return VerifyTransportError(-4, "MM2S transfer could not start");
+    }
+    if (WaitForDma(XAXIDMA_DMA_TO_DEVICE) != 0) {
+        return VerifyTransportError(-5, "MM2S transfer error or timeout");
+    }
+
+    while (timeout-- != 0U) {
+        const uint32_t status = HAWK_ACC_mReadReg(HAWK_FPGA_AXI_ADDR,
+                                                 HAWK_FPGA_VERIFY_OFFSET);
+        last_status = status;
+        if ((status & HAWK_FPGA_VERIFY_DONE) != 0U) {
+            *error = status & HAWK_FPGA_VERIFY_ERROR;
+            return 0;
+        }
+    }
+    xil_printf("HawkFpgaVerify: last status=0x%08lx, n=%lu\r\n",
+               (unsigned long)last_status, (unsigned long)HAWK_N);
+    return VerifyTransportError(-6, "timeout waiting for FPGA verification result");
 }

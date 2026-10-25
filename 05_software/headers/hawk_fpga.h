@@ -28,4 +28,17 @@ int HawkFpgaSendX(const int32_t x0[HAWK_N],
 /* Recibe mediante DMA los HAWK_N coeficientes de 32 bits de s1. */
 int HawkFpgaReceiveS1(int32_t s1[HAWK_N]);
 
+/*
+ * Envia h0 || q00 || q01 || w1 por MM2S y espera el registro 0x0C.
+ * Devuelve 0 si la operacion termina y escribe *error (0=valida, 1=fallo).
+ * Un retorno negativo indica argumentos/configuracion/DMA/timeout, no una
+ * firma incorrecta. Tras un fallo de transporte, reiniciar DMA/acelerador
+ * antes de reintentar. No utilizar simultaneamente con la ruta de firma.
+ */
+int HawkFpgaVerify(const uint32_t h0[HAWK_N_WORDS32],
+                   const int32_t q00[HAWK_N],
+                   const int32_t q01[HAWK_N],
+                   const int32_t w1[HAWK_N],
+                   uint32_t *error);
+
 #endif

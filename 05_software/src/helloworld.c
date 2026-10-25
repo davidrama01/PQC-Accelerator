@@ -45,166 +45,168 @@
  *   ps7_uart    115200 (configured by bootrom/bsp)
  */
 
-#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
 #include "platform.h"
 #include "xil_printf.h"
-#include "hawk_acc.h"
-#include "xil_cache.h"
-#include "xaxidma.h"
-#include "xparameters.h"
-#include "stdlib.h"
-#include "xscutimer.h"
 #include "hawk_params.h"
 #include "keygen.h"
 #include "hawk_sign.h"
+#include "hawk_verify.h"
+#include "hawk_fpga.h"
 
-#define MAX_BURST 256
-#define DMA_ID XPAR_AXI_DMA_0_DEVICE_ID
-#define AXI_LITE_ADDR XPAR_HAWK_ACC_0_S00_AXI_BASEADDR
-#define REG0_OFFSET HAWK_ACC_S00_AXI_SLV_REG0_OFFSET
-#define REG1_OFFSET HAWK_ACC_S00_AXI_SLV_REG1_OFFSET
+static unsigned case_checks, case_failures;
 
-#define WORDS_PER_512BIT 16
-#define NUM_WORDS       (4 * WORDS_PER_512BIT + 512 + 512)
-#define NUM_BYTES       (NUM_WORDS * sizeof(s32))
-
-s32 tx_buffer[NUM_WORDS] __attribute__((aligned(64)));
-
-/* Convierte una secuencia de bytes en una unica cadena hexadecimal. */
-static void bytes_to_hex(char *hex, const uint8_t *bytes, size_t length)
+/* A transport failure must never count as a successfully rejected signature. */
+static void check_verify(const char *name, int result, int expected)
 {
-    static const char digits[] = "0123456789abcdef";
-
-    for (size_t i = 0U; i < length; i++) {
-        hex[2U * i] = digits[bytes[i] >> 4];
-        hex[2U * i + 1U] = digits[bytes[i] & 0x0FU];
+    case_checks++;
+    if (result == expected) {
+        xil_printf("  PASS: %s (result=%d)\r\n", name, result);
+    } else {
+        case_failures++;
+        xil_printf("  FAIL: %s (expected=%d, result=%d)\r\n",
+                   name, expected, result);
     }
-    hex[2U * length] = '\0';
 }
 
-int main()
+static void check_fpga(const char *name, const uint32_t *h0,
+                       const int32_t *q00, const int32_t *q01,
+                       const int32_t *w1, uint32_t expected_error)
 {
-    init_platform();
+    uint32_t error = 0xFFFFFFFFU;
+    int status = HawkFpgaVerify(h0, q00, q01, w1, &error);
+    case_checks++;
+    if (status == 0 && error == expected_error) {
+        xil_printf("  PASS: %s (verify_error=%lu)\r\n",
+                   name, (unsigned long)error);
+    } else {
+        case_failures++;
+        xil_printf("  FAIL: %s (status=%d, verify_error=%lu, expected=%lu)\r\n",
+                   name, status, (unsigned long)error,
+                   (unsigned long)expected_error);
+    }
+}
+
+/* Known polynomial vectors isolate PL rejection and status clearing. */
+static void check_fpga_errors(void)
+{
+    uint32_t h0[HAWK_N_WORDS32];
+    int32_t q00[HAWK_N], q01[HAWK_N], w1[HAWK_N];
+    memset(h0, 0, sizeof h0);
+    memset(q00, 0, sizeof q00);
+    memset(q01, 0, sizeof q01);
+    memset(w1, 0, sizeof w1);
+    q00[0] = 1;
+    w1[0] = 1;
+    check_fpga("PL valid impulse", h0, q00, q01, w1, 0U);
+    w1[0] = -1;
+    check_fpga("PL negative sym-break", h0, q00, q01, w1, 1U);
+    w1[0] = 1;
+    q00[0] = -1;
+    check_fpga("PL invalid q00", h0, q00, q01, w1, 1U);
+    q00[0] = 1;
+    w1[0] = 256;
+    /* Norm = 256^2 = 65536, above all three HAWK thresholds. */
+    check_fpga("PL excessive norm", h0, q00, q01, w1, 1U);
+    w1[0] = 1;
+    check_fpga("PL recovery after rejection", h0, q00, q01, w1, 0U);
+}
+
+/* Imprime sin reservar otro buffer del doble de tamano en la pila. */
+static void print_bytes(const char *name, const uint8_t *bytes, size_t length)
+{
+    xil_printf("%s = 0x", name);
+    for (size_t i = 0U; i < length; i++) {
+        xil_printf("%02x", (unsigned int)bytes[i]);
+    }
+    xil_printf("\r\n");
+}
+
+static int run_case(uint32_t n)
+{
+    /* Seleccionar antes de dimensionar buffers o llamar a cualquier algoritmo. */
+    if (hawk_select_params(n) != 0) {
+        xil_printf("Unsupported n: %lu\r\n", (unsigned long)n);
+        return -1;
+    }
     uint8_t pub[HAWK_PUB_BYTES];
     uint8_t priv[HAWK_PRIV_BYTES];
     uint8_t sig[HAWK_SIG_BYTES];
-    char pub_hex[2U * HAWK_PUB_BYTES + 1U];
-    char priv_hex[2U * HAWK_PRIV_BYTES + 1U];
-    char sig_hex[2U * HAWK_SIG_BYTES + 1U];
-
-    keygen(pub, priv);
-    bytes_to_hex(pub_hex, pub, HAWK_PUB_BYTES);
-    bytes_to_hex(priv_hex, priv, HAWK_PRIV_BYTES);
-
-    xil_printf("public_key = 0x%s\r\n", pub_hex);
-    xil_printf("private_key = 0x%s\r\n", priv_hex);
-
-    print("Successfully ran key generation\n");
-
+    uint8_t bad_sig[HAWK_SIG_BYTES], bad_pub[HAWK_PUB_BYTES];
     static const uint8_t message[] = "Hola HAWK";
+    static const uint8_t changed_message[] = "Hola HAWL";
+    case_checks = 0U;
+    case_failures = 0U;
 
-    if (hawk_sign(sig, priv, message, sizeof message - 1U) == 0) {
-        bytes_to_hex(sig_hex, sig, HAWK_SIG_BYTES);
-        xil_printf("signature = 0x%s\r\n", sig_hex);
-        print("Successfully ran signing process\n");
-    } else {
-        print("Signing process failed\n");
+    xil_printf("\r\n=== %s: n=%lu ===\r\n", HAWK_NAME, (unsigned long)HAWK_N);
+    keygen(pub, priv);
+    print_bytes("public_key", pub, sizeof pub);
+    print_bytes("private_key", priv, sizeof priv);
+    xil_printf("Key generation completed\r\n");
+
+    int result = hawk_sign(sig, priv, message, sizeof message - 1U);
+    if (result != 0) {
+        xil_printf("Signing execution error: %d\r\n", result);
+        return -1;
     }
+    print_bytes("signature", sig, sizeof sig);
+    xil_printf("Signing completed\r\n");
 
-//    int status;
-//
-//	xil_printf("DMA TX test\r\n");
-//
-//	XAxiDma_Config *cfg = XAxiDma_LookupConfig(DMA_ID);
-//	if (!cfg) {
-//		xil_printf("DMA config not found\r\n");
-//		return XST_FAILURE;
-//	}
-//
-//	status = XAxiDma_CfgInitialize(&AxiDma, cfg);
-//	if (status != XST_SUCCESS) {
-//		xil_printf("DMA init failed\r\n");
-//		return XST_FAILURE;
-//	}
-//
-//	if (XAxiDma_HasSg(&AxiDma)) {
-//		xil_printf("DMA is in Scatter-Gather mode\r\n");
-//		return XST_FAILURE;
-//	}
-//
-//	// Cada valor de 512 bits se reparte en 16 palabras de 32 bits
-//	static const s32 h0_words[WORDS_PER_512BIT] = {0x10000001, 0x10000002, 0x10000003, 0x10000004,
-//		0x10000005, 0x10000006, 0x10000007, 0x10000008,
-//		0x10000009, 0x1000000A, 0x1000000B, 0x1000000C,
-//		0x1000000D, 0x1000000E, 0x1000000F, 0x10000010};
-//	static const s32 h1_words[WORDS_PER_512BIT] = {0x20000001, 0x20000002, 0x20000003, 0x20000004,
-//		0x20000005, 0x20000006, 0x20000007, 0x20000008,
-//		0x20000009, 0x2000000A, 0x2000000B, 0x2000000C,
-//		0x2000000D, 0x2000000E, 0x2000000F, 0x20000010};
-//	static const s32 fmod2_words[WORDS_PER_512BIT] = {0x30000001, 0x30000002, 0x30000003, 0x30000004,
-//		0x30000005, 0x30000006, 0x30000007, 0x30000008,
-//		0x30000009, 0x3000000A, 0x3000000B, 0x3000000C,
-//		0x3000000D, 0x3000000E, 0x3000000F, 0x30000010};
-//	static const s32 gmod2_words[WORDS_PER_512BIT] = {0x40000001, 0x40000002, 0x40000003, 0x40000004,
-//		0x40000005, 0x40000006, 0x40000007, 0x40000008,
-//		0x40000009, 0x4000000A, 0x4000000B, 0x4000000C,
-//		0x4000000D, 0x4000000E, 0x4000000F, 0x40000010};
-//	static s32 f_words[512];
-//	static s32 g_words[512];
-//
-//	for (int i = 0; i < 512; i++) {
-//		f_words[i] = (i % 5) - 4;
-//		g_words[i] = 4 - (i % 5);
-//	}
-//
-//	int word_index = 0;
-//
-//	for (int i = 0; i < WORDS_PER_512BIT; i++) {
-//		tx_buffer[word_index++] = (s32)h0_words[i];
-//	}
-//	for (int i = 0; i < WORDS_PER_512BIT; i++) {
-//		tx_buffer[word_index++] = (s32)h1_words[i];
-//	}
-//	for (int i = 0; i < WORDS_PER_512BIT; i++) {
-//		tx_buffer[word_index++] = (s32)fmod2_words[i];
-//	}
-//	for (int i = 0; i < WORDS_PER_512BIT; i++) {
-//		tx_buffer[word_index++] = (s32)gmod2_words[i];
-//	}
-//	for (int i = 0; i < 512; i++) {
-//		tx_buffer[word_index++] = (s32)f_words[i];
-//	}
-//	for (int i = 0; i < 512; i++) {
-//		tx_buffer[word_index++] = (s32)g_words[i];
-//	}
-//
-//	// Importante si la cachÃ© estÃ¡ activada
-//	Xil_DCacheFlushRange((UINTPTR)tx_buffer, NUM_BYTES);
-//
-//    // Se activa la transferencias de datos de entrada
-//    HAWK_ACC_mWriteReg(AXI_LITE_ADDR, REG0_OFFSET, 1);
-//
-//    // Enviar datos: DDR -> DMA -> AXI Stream -> PL
-//	status = XAxiDma_SimpleTransfer(
-//		&AxiDma,
-//		(UINTPTR)tx_buffer,
-//		NUM_BYTES,
-//		XAXIDMA_DMA_TO_DEVICE
-//	);
-//
-//	if (status != XST_SUCCESS) {
-//		xil_printf("DMA TX transfer failed\r\n");
-//		return XST_FAILURE;
-//	}
-//
-//	while (XAxiDma_Busy(&AxiDma, XAXIDMA_DMA_TO_DEVICE));
-//
-//	xil_printf("DMA TX transfer completed\r\n");
-//
-//	//while(HAWK_ACC_mReadReg(XPAR_HAWK_ACC_0_S00_AXI_BASEADDR, HAWK_ACC_S00_AXI_SLV_REG1_OFFSET) != 1){}; //Se espera a que termine la suma (Done = 1)
-//
-//	return XST_SUCCESS;
+    result = hawk_verify(sig, sizeof sig, pub, sizeof pub,
+                         message, sizeof message - 1U);
+    check_verify("original signature", result, 1);
+    if (result != 1) {
+        return -1;
+    }
+    xil_printf("Signature verified successfully\r\n");
 
+    xil_printf("Negative verification tests\r\n");
+    check_verify("altered message",
+        hawk_verify(sig, sizeof sig, pub, sizeof pub,
+                    changed_message, sizeof changed_message - 1U), 0);
+    memcpy(bad_sig, sig, sizeof bad_sig);
+    bad_sig[0] ^= 1U; /* Salt changes, but the encoding remains valid. */
+    check_verify("altered salt",
+        hawk_verify(bad_sig, sizeof bad_sig, pub, sizeof pub,
+                    message, sizeof message - 1U), 0);
+    memcpy(bad_sig, sig, sizeof bad_sig);
+    memset(bad_sig + HAWK_SALTLEN_BYTES, 0,
+           sizeof bad_sig - HAWK_SALTLEN_BYTES);
+    check_verify("malformed signature (PS)",
+        hawk_verify(bad_sig, sizeof bad_sig, pub, sizeof pub,
+                    message, sizeof message - 1U), 0);
+    check_verify("truncated signature (PS)",
+        hawk_verify(sig, sizeof sig - 1U, pub, sizeof pub,
+                    message, sizeof message - 1U), 0);
+    memset(bad_pub, 0, sizeof bad_pub);
+    check_verify("malformed public key (PS)",
+        hawk_verify(sig, sizeof sig, bad_pub, sizeof bad_pub,
+                    message, sizeof message - 1U), 0);
+    check_verify("truncated public key (PS)",
+        hawk_verify(sig, sizeof sig, pub, sizeof pub - 1U,
+                    message, sizeof message - 1U), 0);
+    check_fpga_errors();
+    check_verify("original signature after all errors",
+        hawk_verify(sig, sizeof sig, pub, sizeof pub,
+                    message, sizeof message - 1U), 1);
+    xil_printf("Checks: %u/%u passed\r\n",
+               case_checks - case_failures, case_checks);
+    return case_failures == 0U ? 0 : -1;
+}
+
+int main(void)
+{
+    static const uint32_t sizes[] = {256U, 512U, 1024U};
+    unsigned failures = 0U;
+    init_platform();
+    for (size_t i = 0U; i < sizeof sizes / sizeof sizes[0]; i++) {
+        int result = run_case(sizes[i]);
+        xil_printf("HAWK-%lu: %s\r\n", (unsigned long)sizes[i],
+                   result == 0 ? "PASS" : "FAIL");
+        failures += result != 0;
+    }
+    xil_printf("Completed: %u/3 cases passed\r\n", 3U - failures);
     cleanup_platform();
-    return 0;
+    return failures == 0U ? 0 : 1;
 }

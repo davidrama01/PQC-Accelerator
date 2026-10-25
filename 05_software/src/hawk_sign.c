@@ -1,5 +1,5 @@
 #include <string.h>
-#include "hawk_Sign.h"
+#include "hawk_sign.h"
 #include "hawk_params.h"
 #include "decode.h"
 #include "encode.h"
