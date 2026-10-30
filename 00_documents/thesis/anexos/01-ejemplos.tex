@@ -1,0 +1,39 @@
+\chapter{Ejemplos de edición}
+\label{app:examples}
+Este anexo sirve de guía de LaTeX. Eliminarlo o sustituirlo en la memoria final.
+\section{Referencias cruzadas y ecuaciones}
+Etiquetar los elementos y referenciarlos con \verb|\cref{etiqueta}|, como en la \cref{eq:speedup}. Los números se actualizan al compilar.
+\begin{equation}
+ S = \frac{t_{\mathrm{software}}}{t_{\mathrm{hardware}}}
+ \label{eq:speedup}
+\end{equation}
+Definir siempre si el tiempo incluye transferencias y preparación de datos.
+\section{Figuras}
+\begin{figure}[htbp]
+\centering
+\fbox{\parbox[c][3cm][c]{0.85\linewidth}{\centering Espacio reservado para el diagrama de arquitectura}}
+\caption{Ejemplo de posición de una figura. Sustituir por un diagrama real.}
+\label{fig:example}
+\end{figure}
+% Sustituir el recuadro por \includegraphics[width=0.9\linewidth]{arquitectura.pdf}.
+\section{Tablas}
+\begin{table}[htbp]
+\centering
+\caption{Plantilla para registrar resultados medidos.}
+\label{tab:example}
+\begin{tabular}{lrr}
+\toprule
+Configuración & Ciclos & Tiempo ($\mu$s) \\
+\midrule
+{[Configuración]} & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+\section{Código}
+\begin{lstlisting}[language=VHDL,caption={Ejemplo mínimo de una asignación VHDL.},label={lst:example}]
+-- Sustituir por un fragmento representativo del diseno.
+valid_out <= valid_in;
+\end{lstlisting}
+Para incluir un archivo real, usar \verb|\lstinputlisting{ruta/al/archivo.vhd}|.
+\section{Bibliografía}
+Las citas se insertan con \verb|\cite{clave}|. La siguiente referencia solo demuestra el formato bibliográfico: \cite{latex-companion}. Sustituirla por las fuentes del TFM y comprobar sus metadatos.

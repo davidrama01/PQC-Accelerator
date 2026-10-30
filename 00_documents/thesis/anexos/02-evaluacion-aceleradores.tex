@@ -1,0 +1,707 @@
+\chapter{Evaluación de aceleradores criptográficos poscuánticos}
+\label{anexo:aceleradores}
+\label{app:accelerators-evaluation}
+
+Este anexo recoge el estudio comparativo previo a la selección del acelerador. Se conservan las valoraciones y la clasificación del documento de trabajo \textit{Accelerators Evaluation}; las tablas se han transcrito al formato de la memoria. Las valoraciones corresponden al estudio inicial y no constituyen una evaluación actualizada de la seguridad de los esquemas.
+
+Las tablas procedentes de imágenes mantienen las cifras y abreviaturas del documento de partida. Las referencias numéricas internas de esas tablas pertenecen a sus publicaciones de origen y no a la bibliografía de esta memoria. Los guiones indican datos no disponibles en las tablas originales.
+
+
+\section{CROSS}
+
+\subsection*{Ventajas}
+\begin{itemize}
+\item Se compone principalmente de operaciones aritméticas que es relativamente sencillo en HW.
+\item Muy paralelizable
+\end{itemize}
+
+\subsection*{Limitaciones}
+\begin{itemize}
+\item Tiene un gran coste en área
+\item Tiene una lógica bastante compleja por lo que es necesario definir bien las FSM.
+\item Mucho hashing
+\end{itemize}
+
+\begingroup
+\small
+\setlength{\tabcolsep}{3pt}
+\setlength{\LTcapwidth}{\textwidth}
+\begin{longtable}{lrrrrrr}
+\caption{CROSS: recursos y frecuencia de síntesis.}\label{tab:eval-cross-recursos}\\
+\toprule
+Parámetros & LUT & FF & BRAM & DSP & KeSlice & MHz \\
+\midrule
+\endfirsthead
+\toprule
+Parámetros & LUT & FF & BRAM & DSP & KeSlice & MHz \\
+\midrule
+\endhead
+\midrule
+\multicolumn{7}{r}{\small Continúa en la página siguiente.}\\
+\endfoot
+\bottomrule
+\endlastfoot
+{RSDP-1-f} & {26741} & {11678} & {45.0} & {0} & {16.2} & {118} \\
+{RSDP-1-b} & {27308} & {11820} & {57.5} & {0} & {19.0} & {111} \\
+{RSDP-1-s} & {27779} & {11990} & {111.5} & {0} & {30.6} & {114} \\
+{RSDPG-1-f} & {27324} & {11726} & {28.5} & {0} & {12.9} & {122} \\
+{RSDPG-1-b} & {28572} & {11892} & {37.0} & {0} & {15.0} & {120} \\
+{RSDPG-1-s} & {28777} & {12257} & {63.0} & {0} & {20.6} & {117} \\
+{RSDP-3-f} & {29096} & {13761} & {97.0} & {0} & {27.8} & {108} \\
+{RSDP-3-b} & {29790} & {14028} & {121.5} & {0} & {33.2} & {113} \\
+{RSDP-3-s} & {29742} & {14067} & {148.0} & {0} & {38.8} & {109} \\
+{RSDPG-3-f} & {31185} & {13272} & {43.5} & {0} & {17.0} & {112} \\
+{RSDPG-3-b} & {31233} & {13479} & {68.0} & {0} & {22.2} & {115} \\
+{RSDPG-3-s} & {32123} & {13808} & {122.5} & {0} & {34.0} & {118} \\
+{RSDP-5-f} & {32085} & {15537} & {151.0} & {0} & {40.0} & {113} \\
+{RSDP-5-b} & {33056} & {15635} & {202.0} & {0} & {51.1} & {111} \\
+{RSDP-5-s} & {34868} & {15815} & {280.0} & {0} & {68.1} & {105} \\
+{RSDPG-5-f} & {34266} & {15331} & {91.5} & {0} & {28.1} & {113} \\
+{RSDPG-5-b} & {36033} & {15502} & {122.5} & {0} & {35.0} & {113} \\
+{RSDPG-5-s} & {35296} & {15853} & {182.5} & {0} & {47.5} & {113} \\
+\end{longtable}
+\endgroup
+\begingroup
+\small
+\setlength{\tabcolsep}{3pt}
+\setlength{\LTcapwidth}{\textwidth}
+\begin{longtable}{lrrrrrr}
+\caption{CROSS: tiempos de generación de claves, firma y verificación (ms) y producto área-tiempo (AT).}\label{tab:eval-cross-tiempos}\\
+\toprule
+Parámetros & Claves & AT & Firma & AT & Verif. & AT \\
+\midrule
+\endfirsthead
+\toprule
+Parámetros & Claves & AT & Firma & AT & Verif. & AT \\
+\midrule
+\endhead
+\midrule
+\multicolumn{7}{r}{\small Continúa en la página siguiente.}\\
+\endfoot
+\bottomrule
+\endlastfoot
+{RSDP-1-f} & {0.035} & {0.568} & {0.478} & {7.76} & {0.409} & {6.64} \\
+{RSDP-1-b} & {0.037} & {0.708} & {0.856} & {16.3} & {0.618} & {11.8} \\
+{RSDP-1-s} & {0.036} & {1.11} & {1.67} & {51.0} & {1.12} & {34.2} \\
+{RSDPG-1-f} & {0.008} & {0.109} & {0.338} & {4.35} & {0.303} & {3.91} \\
+{RSDPG-1-b} & {0.009} & {0.129} & {0.676} & {10.1} & {0.519} & {7.78} \\
+{RSDPG-1-s} & {0.009} & {0.182} & {1.38} & {28.4} & {1.03} & {21.1} \\
+{RSDP-3-f} & {0.081} & {2.26} & {1.09} & {30.3} & {0.973} & {27.1} \\
+{RSDP-3-b} & {0.078} & {2.57} & {1.69} & {56.0} & {1.24} & {41.1} \\
+{RSDP-3-s} & {0.080} & {3.12} & {2.61} & {101} & {1.80} & {69.7} \\
+{RSDPG-3-f} & {0.017} & {0.297} & {0.701} & {11.9} & {0.665} & {11.3} \\
+{RSDPG-3-b} & {0.017} & {0.378} & {0.919} & {20.4} & {0.786} & {17.5} \\
+{RSDPG-3-s} & {0.017} & {0.564} & {1.63} & {57.2} & {1.35} & {45.7} \\
+{RSDP-5-f} & {0.138} & {5.51} & {1.71} & {68.4} & {1.60} & {64.1} \\
+{RSDP-5-b} & {0.140} & {7.16} & {2.73} & {140} & {2.09} & {107} \\
+{RSDP-5-s} & {0.148} & {10.1} & {4.62} & {314} & {3.27} & {223} \\
+{RSDPG-5-f} & {0.028} & {0.798} & {1.20} & {33.6} & {1.14} & {31.9} \\
+{RSDPG-5-b} & {0.028} & {0.995} & {1.57} & {54.9} & {1.32} & {46.1} \\
+{RSDPG-5-s} & {0.028} & {1.35} & {2.77} & {132} & {2.15} & {102} \\
+\end{longtable}
+\endgroup
+
+
+\section{LESS}
+
+\subsection*{Ventajas}
+\begin{itemize}
+\item Hay implementaciones existentes en FPGA similares
+\end{itemize}
+
+\subsection*{Limitaciones}
+\begin{itemize}
+\item Se necesita mucha optimización para implementarse (alto uso de LUT).
+\item Gastan mucho las operaciones vectoriales y matriciales.
+\item Claves públicas muy grandes
+\item Eliminación Gaussiana ocupa mucho.
+\end{itemize}
+
+\begingroup
+\small
+\setlength{\tabcolsep}{3pt}
+\setlength{\LTcapwidth}{\textwidth}
+\begin{longtable}{lrrrrrr}
+\caption{LESS: recursos y prestaciones. LUT, FF y ciclos expresados en miles; BRAM de 36 Kbit.}\label{tab:eval-less}\\
+\toprule
+Parámetros & MHz & LUT & FF & BRAM & Ciclos & Latencia (µs) \\
+\midrule
+\endfirsthead
+\toprule
+Parámetros & MHz & LUT & FF & BRAM & Ciclos & Latencia (µs) \\
+\midrule
+\endhead
+\midrule
+\multicolumn{7}{r}{\small Continúa en la página siguiente.}\\
+\endfoot
+\bottomrule
+\endlastfoot
+{LESS-1\{b,i,s\}} & {125} & {29.4} & {20.4} & {25.5} & {16.1} & {129.3} \\
+{LESS-3\{b,s\}} & {111} & {46.3} & {33.8} & {40} & {40.4} & {364.3} \\
+{LESS-5\{b,s\}} & {100} & {66.6} & {47.4} & {55} & {75.7} & {756.6} \\
+\end{longtable}
+\endgroup
+
+
+\section{SQIsign}
+
+\subsection*{Limitaciones}
+\begin{itemize}
+\item La isogenía consta de un algoritmo complejo con control complejo por lo que es complicado de llevar a cabo en una FPGA.
+\item Requiere mucho hardware
+\end{itemize}
+
+\begingroup
+\small
+\setlength{\tabcolsep}{3pt}
+\setlength{\LTcapwidth}{\textwidth}
+\begin{longtable}{lrrrr}
+\caption{Comparación de implementaciones recogida en el estudio de SQIsign: frecuencia, latencia y recursos. Ancho en bits; latencia en ciclos.}\label{tab:eval-sqisign}\\
+\toprule
+Bits & Diseño & MHz & Ciclos & DSP/LUT/FF \\
+\midrule
+\endfirsthead
+\toprule
+Bits & Diseño & MHz & Ciclos & DSP/LUT/FF \\
+\midrule
+\endhead
+\midrule
+\multicolumn{5}{r}{\small Continúa en la página siguiente.}\\
+\endfoot
+\bottomrule
+\endlastfoot
+{256} & {CA0D2C1E [23]} & {625} & {140} & {16/1759/3365} \\
+{256} & {[8]} & {200} & {33} & {120/2728/-} \\
+{256} & {[8]} & {194} & {47} & {91/1718/-} \\
+{256} & {[29]} & {--} & {--} & {289/87622/2952} \\
+{256} & {[5]} & {--} & {--} & {248/9450/-} \\
+{256} & {[18]} & {86.79} & {29} & {120/6688/5163} \\
+{256} & {[20]} & {68} & {--} & {0/187900/-} \\
+{256} & {N=3, s=6} & {625} & {111} & {18/4156/5145} \\
+{256} & {N=5, s=4} & {625} & {113} & {20/4824/5541} \\
+{256} & {N=7, s=3} & {625} & {111} & {21/5109/5637} \\
+{256} & {N=11, s=2} & {600} & {103} & {22/5421/5528} \\
+{512} & {CA0D2C1E [23]} & {625} & {275} & {31/3443/6602} \\
+{512} & {[8]} & {162} & {33} & {188/29985/-} \\
+{512} & {[8]} & {182} & {47} & {176/37138/-} \\
+{512} & {[29]} & {--} & {--} & {1089/329868/4143} \\
+{512} & {[18]} & {61.3} & {29} & {560/23511/11307} \\
+{512} & {N=5, s=7} & {525} & {209} & {35/8044/10510} \\
+{512} & {N=7, s=5} & {550} & {199} & {35/8124/10128} \\
+{512} & {N=11, s=4} & {525} & {239} & {44/10498/12350} \\
+{512} & {N=13, s=3} & {500} & {201} & {39/9266/11033} \\
+{1024} & {CA0D2C1E [23]} & {625} & {545} & {61/6785/12108} \\
+{1024} & {[11]} & {244} & {1372} & {9/5003/-} \\
+{1024} & {N=5, s=13} & {525} & {401} & {65/14999/19272} \\
+{1024} & {N=11, s=7} & {500} & {443} & {77/18282/21598} \\
+{2048} & {CA0D2C1E [23]} & {625} & {1085} & {121/13487/22602} \\
+{2048} & {[11]} & {246} & {2945} & {9/5964/-} \\
+{2048} & {N=5, s=25} & {500} & {785} & {125/29182/35008} \\
+{4096} & {CA0D2C1E [23]} & {625} & {2174} & {242/26978/44806} \\
+{4096} & {[11]} & {175} & {2945} & {27/11898/-} \\
+{4096} & {N=5, s=25} & {525} & {1553} & {245/58161/66740} \\
+\end{longtable}
+\endgroup
+\begingroup
+\small
+\setlength{\tabcolsep}{3pt}
+\setlength{\LTcapwidth}{\textwidth}
+\begin{longtable}{lrrr}
+\caption{Comparación de implementaciones recogida en el estudio de SQIsign: tiempo y producto área-tiempo (AT), en recurso por µs.}\label{tab:eval-sqisign-at}\\
+\toprule
+Bits & Diseño & Tiempo (µs) & AT: DSP/LUT/FF \\
+\midrule
+\endfirsthead
+\toprule
+Bits & Diseño & Tiempo (µs) & AT: DSP/LUT/FF \\
+\midrule
+\endhead
+\midrule
+\multicolumn{4}{r}{\small Continúa en la página siguiente.}\\
+\endfoot
+\bottomrule
+\endlastfoot
+{256} & {CA0D2C1E [23]} & {0.224} & {3.58/394/754} \\
+{256} & {[8]} & {0.165} & {19.8/450/-} \\
+{256} & {[8]} & {0.242} & {22.0/415/-} \\
+{256} & {[29]} & {0.01755} & {5.072/1537/51} \\
+{256} & {[5]} & {0.0852} & {21.13/805/-} \\
+{256} & {[18]} & {0.334} & {40.1/2234/1724} \\
+{256} & {[20]} & {0.0147} & {0/2762/-} \\
+{256} & {N=3, s=6} & {0.178} & {3.20/738/914} \\
+{256} & {N=5, s=4} & {0.181} & {3.62/872/1000} \\
+{256} & {N=7, s=3} & {0.178} & {3.73/907/1000} \\
+{256} & {N=11, s=2} & {0.172} & {3.78/931/949} \\
+{512} & {CA0D2C1E [23]} & {0.440} & {13.6/1510/2900} \\
+{512} & {[8]} & {0.204} & {38.4/6120/-} \\
+{512} & {[8]} & {0.258} & {45.4/9580/-} \\
+{512} & {[29]} & {0.02568} & {27.97/8471/106} \\
+{512} & {[18]} & {0.472} & {264.3/11097/5336} \\
+{512} & {N=5, s=7} & {0.398} & {13.9/3200/4180} \\
+{512} & {N=7, s=5} & {0.362} & {12.7/2940/3660} \\
+{512} & {N=11, s=4} & {0.455} & {20.0/4780/5620} \\
+{512} & {N=13, s=3} & {0.365} & {14.3/3390/4030} \\
+{1024} & {CA0D2C1E [23]} & {0.872} & {53.2/5920/10600} \\
+{1024} & {[11]} & {5.63} & {50.7/28166/-} \\
+{1024} & {N=5, s=13} & {0.764} & {49.6/11500/14700} \\
+{1024} & {N=11, s=7} & {0.886} & {68.2/16200/19100} \\
+{2048} & {CA0D2C1E [23]} & {1.74} & {210/23400/39000} \\
+{2048} & {[11]} & {11.99} & {107.9/71508/-} \\
+{2048} & {N=5, s=25} & {1.57} & {196/45800/54900} \\
+{4096} & {CA0D2C1E [23]} & {3.48} & {842/93800/156000} \\
+{4096} & {[11]} & {16.82} & {454.1/200124/-} \\
+{4096} & {N=5, s=25} & {2.958} & {724/172000/197000} \\
+\end{longtable}
+\endgroup
+
+
+\section{HAWK}
+
+\subsection*{Ventajas}
+\begin{itemize}
+\item No utiliza operaciones en coma flotante lo que simplifica bastante
+\item Implementación ya existente en FPGA basada en Dilithium (algo diferente)
+\item De realizarse en HAWK, debería realizarse en SoC (PS+PL). Dificilmente viable puramente en HW.
+\end{itemize}
+
+\subsection*{Limitaciones}
+\begin{itemize}
+\item Sigue teniendo un algoritmo complejo con control complejo
+\item No se ha encontrado ninguna implementación en HW ya existente
+\item Implementación de NTT
+\item Mayor complejidad que las multivariables
+\end{itemize}
+
+\section{Mirath}
+
+\begingroup
+\small
+\setlength{\tabcolsep}{3pt}
+\setlength{\LTcapwidth}{\textwidth}
+\begin{longtable}{lrrrr}
+\caption{Mirath: utilización de recursos para los niveles L1 y L5. Los bloques DSP son comunes a todos los niveles.}\label{tab:eval-mirath}\\
+\toprule
+Módulo & LUT L1/L5 & FF L1/L5 & DSP & BRAM L1/L5 \\
+\midrule
+\endfirsthead
+\toprule
+Módulo & LUT L1/L5 & FF L1/L5 & DSP & BRAM L1/L5 \\
+\midrule
+\endhead
+\midrule
+\multicolumn{5}{r}{\small Continúa en la página siguiente.}\\
+\endfoot
+\bottomrule
+\endlastfoot
+{Control principal (FSM)} & {958/1007} & {1003/1203} & {0} & {0} \\
+{Control árbol GGM (FSM)} & {929/909} & {371/344} & {0} & {1/2} \\
+{Motor SHA3} & {3757/3593} & {1978/1973} & {0} & {1} \\
+{Motor AES/Rijndael} & {2073/4163} & {1278/2162} & {0} & {0} \\
+{Núcleos aritméticos} & {7639/20699} & {4751/12477} & {0} & {34/73} \\
+{Memoria de datos} & {0} & {0} & {0} & {4/16} \\
+{Memoria de claves} & {0} & {0} & {0} & {2/4} \\
+{FIFO de compromisos} & {44/44} & {64/64} & {0} & {0/0} \\
+{Total} & {15400/30415} & {9445/18223} & {0} & {42/96} \\
+\end{longtable}
+\endgroup
+
+
+\subsection*{Ventajas}
+\begin{itemize}
+\item No hay aritmética compleja
+\item Repetición de la misma operación (muy paralelizable)
+\end{itemize}
+
+\subsection*{Limitaciones}
+\begin{itemize}
+\item Realiza mucho hash (consumo de memoria)
+\item El resto de las funcionalidades también hacen un uso intensivo de memoria
+\item Tiene que realizarse un buen control
+\item Pocas implementaciones en HW
+\end{itemize}
+
+\section{MQOM}
+
+\subsection*{Ventajas}
+\begin{itemize}
+\item Operaciones lógicas cortas y sencillas
+\item Poco uso de LUT para operaciones aritméticas
+\item Puede acelerarse con DSP
+\end{itemize}
+
+\subsection*{Limitaciones}
+\begin{itemize}
+\item Combina tanto MPC como Multivariable (no es fácil de implementar)
+\item Control complejo
+\item Elevado uso de LUT por hashing
+\item Poca implementación previa en FPGA
+\end{itemize}
+
+\section{PERK}
+
+\subsection*{Ventajas}
+\begin{itemize}
+\item Operaciones lógicas simples
+\item Bajo uso de bloques DSP
+\item Muchas rondas (paralelizable)
+\end{itemize}
+
+\subsection*{Limitaciones}
+\begin{itemize}
+\item Sigue habiendo hashing (muchas LUT)
+\item Mucho uso de memoria
+\item Control complejo
+\item Poca implementación existente en FPGA
+\end{itemize}
+
+\section{RYDE}
+
+\subsection*{Ventajas}
+\begin{itemize}
+\item Muchas rondas (paralelizable)
+\item Operaciones aritméticas
+\end{itemize}
+
+\subsection*{Limitaciones}
+\begin{itemize}
+\item Control complejo
+\item Uso intensivo de recursos (LUT y BRAM)
+\item Mucho hashing
+\item Poca implementación existente en FPGA
+\end{itemize}
+
+\section{SDitH}
+
+\begingroup
+\small
+\setlength{\tabcolsep}{3pt}
+\setlength{\LTcapwidth}{\textwidth}
+\begin{longtable}{lrrrr}
+\caption{SDitH: utilización de recursos FPGA.}\label{tab:eval-sdith}\\
+\toprule
+Parámetros & LUT & FF & DSP & BRAM \\
+\midrule
+\endfirsthead
+\toprule
+Parámetros & LUT & FF & DSP & BRAM \\
+\midrule
+\endhead
+\midrule
+\multicolumn{5}{r}{\small Continúa en la página siguiente.}\\
+\endfoot
+\bottomrule
+\endlastfoot
+{SDitH-L1-GF256} & {16592} & {13778} & {0} & {164.5} \\
+{SDitH-L1-GF251} & {17463} & {16386} & {196} & {164.5} \\
+{SDitH-L3-GF256} & {22906} & {18381} & {0} & {356.0} \\
+{SDitH-L3-GF251} & {24381} & {27941} & {382} & {356.0} \\
+{SDitH-L5-GF256} & {32423} & {24992} & {0} & {521.5} \\
+{SDitH-L5-GF251} & {34136} & {31406} & {472} & {521.5} \\
+\end{longtable}
+\endgroup
+
+
+\subsection*{Ventajas}
+\begin{itemize}
+\item Pocas operaciones lógicas (muy MPC)
+\item Operaciones con matrices
+\item No usa isogenías ni NTT
+\item Algo más de implementación en FPGA a pesar de ser MPC
+\end{itemize}
+
+\subsection*{Limitaciones}
+\begin{itemize}
+\item Mucho hashing
+\item Uso intensivo de memoria
+\item Control complejo
+\end{itemize}
+
+\section{MAYO}
+
+\begingroup
+\small
+\setlength{\tabcolsep}{3pt}
+\setlength{\LTcapwidth}{\textwidth}
+\begin{longtable}{lrrr}
+\caption{MAYO y UOV: comparación de plataformas y recursos (LUT/FF/DSP/BRAM, salvo área ASIC en mm²).}\label{tab:eval-mayo-recursos}\\
+\toprule
+Esquema & Trabajo & Plataforma & Recursos / área \\
+\midrule
+\endfirsthead
+\toprule
+Esquema & Trabajo & Plataforma & Recursos / área \\
+\midrule
+\endhead
+\midrule
+\multicolumn{4}{r}{\small Continúa en la página siguiente.}\\
+\endfoot
+\bottomrule
+\endlastfoot
+{UOV-I} & {[7] a} & {Artix7 90.8 MHz} & {28k/24k/2/66} \\
+{UOV-I} & {[7] a} & {Artix7 90.8 MHz} & {34k/27k/2/66} \\
+{UOV-I} & {[7] a} & {AC-A72 1.8 GHz} & {--} \\
+{UOV-I} & {[5]} & {AC-M4 24 MHz} & {--} \\
+{UOV-I} & {[5] b} & {IXG 6338 2 GHz} & {--} \\
+{MAYO-I} & {[10] b} & {AC-M7 480 MHz} & {--} \\
+{MAYO-I} & {[23]} & {Artix7 100 MHz} & {21k/13k/11/129} \\
+{MAYO-I} & {Our e} & {Artix7 75 MHz} & {92k/33k/2/45.5} \\
+{MAYO-I} & {Our e} & {Kintex7 100 MHz} & {94k/32k/2/45.5} \\
+{MAYO-I} & {Our e} & {A-28nm 1.5 GHz} & {1.02 mm²} \\
+{MAYO-I} & {Our f} & {Artix7 75 MHz} & {106k/38k/2/45.5} \\
+{MAYO-I} & {Our f} & {Kintex7 100 MHz} & {112k/38k/2/45.5} \\
+{MAYO-I} & {Our f} & {A-28nm 1.5 GHz} & {1.24 mm²} \\
+{UOV-III} & {[7] c} & {Artix7 96 MHz} & {38k/29k/2/184.5} \\
+{UOV-III} & {[7] c} & {Artix7 94.1 MHz} & {43k/35k/2/184.5} \\
+{UOV-III} & {[7] c} & {AC-A72 1.8 GHz} & {--} \\
+{MAYO-III} & {[5]} & {IXG 6338 2 GHz} & {--} \\
+{MAYO-III} & {Our e} & {Kintex7 100 MHz} & {147k/52k/2/96} \\
+{MAYO-III} & {Our e} & {A-28nm 1.5 GHz} & {1.71 mm²} \\
+{MAYO-III} & {Our f} & {Kintex7 100 MHz} & {169k/60k/2/96} \\
+{MAYO-III} & {Our f} & {A-28nm 1.5 GHz} & {1.97 mm²} \\
+{UOV-V} & {[7] d} & {Artix7 82.5 MHz} & {77k/38k/2/356} \\
+{UOV-V} & {[7] d} & {Artix7 92.6 MHz} & {83k/41k/2/359} \\
+{UOV-V} & {[7] d} & {AC-A72 1.8 GHz} & {--} \\
+{MAYO-V} & {[5]} & {IXG 6338 2 GHz} & {--} \\
+{MAYO-V} & {Our e} & {Kintex7 100 MHz} & {215k/73k/2/194.5} \\
+{MAYO-V} & {Our e} & {A-28nm 1.5 GHz} & {3.09 mm²} \\
+{MAYO-V} & {Our f} & {Kintex7 100 MHz} & {246k/83k/2/194.5} \\
+{MAYO-V} & {Our f} & {A-28nm 1.5 GHz} & {3.45 mm²} \\
+\end{longtable}
+\endgroup
+\begingroup
+\small
+\setlength{\tabcolsep}{3pt}
+\setlength{\LTcapwidth}{\textwidth}
+\begin{longtable}{lrrrrr}
+\caption{MAYO y UOV: latencias expresadas como ciclos/ms; k y M denotan miles y millones de ciclos.}\label{tab:eval-mayo-tiempos}\\
+\toprule
+Esquema & Trabajo & Plataforma & Claves & Firma & Verificación \\
+\midrule
+\endfirsthead
+\toprule
+Esquema & Trabajo & Plataforma & Claves & Firma & Verificación \\
+\midrule
+\endhead
+\midrule
+\multicolumn{6}{r}{\small Continúa en la página siguiente.}\\
+\endfoot
+\bottomrule
+\endlastfoot
+{UOV-I} & {[7] a} & {Artix7 90.8 MHz} & {11.0M/121.94} & {843k/9.29} & {284k/3.13} \\
+{UOV-I} & {[7] a} & {Artix7 90.8 MHz} & {11.0M/121.91} & {779k/8.63} & {115k/1.27} \\
+{UOV-I} & {[7] a} & {AC-A72 1.8 GHz} & {28.3M/15.73} & {13.3M/7.40} & {2.20M/1.25} \\
+{UOV-I} & {[5]} & {AC-M4 24 MHz} & {5.24M/21.84} & {9.18M/38.25} & {4.88M/20.33} \\
+{UOV-I} & {[5] b} & {IXG 6338 2 GHz} & {110k/0.05} & {460k/0.23} & {175k/0.08} \\
+{MAYO-I} & {[10] b} & {AC-M7 480 MHz} & {--} & {42.9M/89.43} & {6.70M/11.88} \\
+{MAYO-I} & {[23]} & {Artix7 100 MHz} & {996k/9.96} & {2.867M/28.67} & {--} \\
+{MAYO-I} & {Our e} & {Artix7 75 MHz} & {29330/0.40} & {95191/1.28} & {30150/0.40} \\
+{MAYO-I} & {Our e} & {Kintex7 100 MHz} & {29330/0.30} & {95191/0.96} & {30150/0.30} \\
+{MAYO-I} & {Our e} & {A-28nm 1.5 GHz} & {29330/0.02} & {95191/0.06} & {30150/0.02} \\
+{MAYO-I} & {Our f} & {Artix7 75 MHz} & {5799/0.08} & {31128/0.43} & {4587/0.05} \\
+{MAYO-I} & {Our f} & {Kintex7 100 MHz} & {5799/0.06} & {31128/0.32} & {4587/0.04} \\
+{MAYO-I} & {Our f} & {A-28nm 1.5 GHz} & {5799/0.004} & {31128/0.02} & {4587/0.003} \\
+{UOV-III} & {[7] c} & {Artix7 96 MHz} & {16.7M/174.24} & {1.46M/15.26} & {823k/8.57} \\
+{UOV-III} & {[7] c} & {Artix7 94.1 MHz} & {16.4M/174.94} & {1.19M/12.75} & {195k/2.07} \\
+{UOV-III} & {[7] c} & {AC-A72 1.8 GHz} & {56.8M/31.56} & {34.5M/19.18} & {8.31M/4.62} \\
+{MAYO-III} & {[5]} & {IXG 6338 2 GHz} & {508k/0.25} & {1.66M/0.83} & {610k/0.30} \\
+{MAYO-III} & {Our e} & {Kintex7 100 MHz} & {65660/0.65} & {214751/2.15} & {66959/0.67} \\
+{MAYO-III} & {Our e} & {A-28nm 1.5 GHz} & {65660/0.04} & {214751/0.14} & {66959/0.04} \\
+{MAYO-III} & {Our f} & {Kintex7 100 MHz} & {11730/0.11} & {65673/0.65} & {9035/0.10} \\
+{MAYO-III} & {Our f} & {A-28nm 1.5 GHz} & {11730/0.008} & {65673/0.04} & {9035/0.006} \\
+{UOV-V} & {[7] d} & {Artix7 82.5 MHz} & {39.0M/473.53} & {3.30M/40.09} & {1.9M/23.29} \\
+{UOV-V} & {[7] d} & {Artix7 92.6 MHz} & {38.4M/414.73} & {2.64M/28.56} & {364k/3.93} \\
+{UOV-V} & {[7] d} & {AC-A72 1.8 GHz} & {291M/161.91} & {86.7M/48.18} & {18.6M/10.33} \\
+{MAYO-V} & {[5]} & {IXG 6338 2 GHz} & {1.21M/0.60} & {4.14M/2.07} & {1.18M/0.59} \\
+{MAYO-V} & {Our e} & {Kintex7 100 MHz} & {118027/1.19} & {384488/3.89} & {119603/1.19} \\
+{MAYO-V} & {Our e} & {A-28nm 1.5 GHz} & {118027/0.08} & {384488/0.26} & {119603/0.08} \\
+{MAYO-V} & {Our f} & {Kintex7 100 MHz} & {19897/0.20} & {111736/1.12} & {14713/0.14} \\
+{MAYO-V} & {Our f} & {A-28nm 1.5 GHz} & {19897/0.01} & {111736/0.07} & {14713/0.009} \\
+\end{longtable}
+\endgroup
+Las marcas a--f, las referencias entre corchetes y la denominación \textit{Our} se conservan de la tabla del documento de partida; no identifican resultados del presente trabajo.
+
+
+
+\subsection*{Ventajas}
+\begin{itemize}
+\item Solo se hace hash una vez (poco uso de LUT)
+\item Operaciones aritméticas
+\item Altamente paralelizable
+\item Trabajos en FPGA ya existentes
+\end{itemize}
+
+\subsection*{Limitaciones}
+\begin{itemize}
+\item Resolución del sistema de ecuaciones
+\item Uso intensivo de memoria
+\item Clave pública grande (coeficientes del sistema)
+\end{itemize}
+
+\section{QR-UOV}
+
+\subsection*{Ventajas}
+\begin{itemize}
+\item Operaciones aritméticas sencillas
+\item Cálculo matricial
+\item Poco hashing
+\item Control asequible
+\item Implementación de UOV ya existente
+\item Reduce respecto a UOV el tamaño de la clave pública
+\end{itemize}
+
+\subsection*{Limitaciones}
+\begin{itemize}
+\item Mucho uso de memoria
+\item Eliminación gaussiana (más reducida que UOV)
+\end{itemize}
+
+\section{SNOVA}
+
+\subsection*{Ventajas}
+\begin{itemize}
+\item Operaciones aritméticas matriciales
+\item Paralelizable
+\item Repetitivo
+\end{itemize}
+
+\subsection*{Limitaciones}
+\begin{itemize}
+\item Mucho uso de memoria en matrices
+\item Resolver el sistema es más complicado
+\item Mayor control
+\item Variables matriciales en lugar de escalares
+\end{itemize}
+
+\section{UOV}
+
+\begingroup
+\small
+\setlength{\tabcolsep}{3pt}
+\setlength{\LTcapwidth}{\textwidth}
+\begin{longtable}{lrrrrr}
+\caption{UOV: utilización de recursos.}\label{tab:eval-uov-recursos}\\
+\toprule
+Variante & Slices & LUT & FF & BRAM & DSP \\
+\midrule
+\endfirsthead
+\toprule
+Variante & Slices & LUT & FF & BRAM & DSP \\
+\midrule
+\endhead
+\midrule
+\multicolumn{6}{r}{\small Continúa en la página siguiente.}\\
+\endfoot
+\bottomrule
+\endlastfoot
+{uov-Ip-classic} & {12145} & {33221} & {24097} & {108.5} & {2} \\
+{uov-Ip-pkc} & {12073} & {32134} & {22969} & {81} & {2} \\
+{uov-Ip-pkc+skc} & {12106} & {32422} & {23262} & {48} & {2} \\
+{uov-Is-classic} & {12860} & {44974} & {27433} & {140} & {2} \\
+{uov-Is-pkc} & {11740} & {29385} & {25328} & {110} & {2} \\
+{uov-Is-pkc+skc} & {11681} & {28947} & {24444} & {66} & {2} \\
+{uov-III-pkc} & {17610} & {41761} & {31543} & {310.5} & {4} \\
+{uov-III-pkc+skc} & {16574} & {38352} & {29446} & {184.5} & {4} \\
+{uov-V-pkc+skc} & {27038} & {77352} & {38217} & {359} & {4} \\
+\end{longtable}
+\endgroup
+\begingroup
+\small
+\setlength{\tabcolsep}{3pt}
+\setlength{\LTcapwidth}{\textwidth}
+\begin{longtable}{lrrrr}
+\caption{UOV: ciclos de generación de claves, firma y verificación y frecuencia.}\label{tab:eval-uov-tiempos}\\
+\toprule
+Variante & Claves & Firma & Verificación & MHz \\
+\midrule
+\endfirsthead
+\toprule
+Variante & Claves & Firma & Verificación & MHz \\
+\midrule
+\endhead
+\midrule
+\multicolumn{5}{r}{\small Continúa en la página siguiente.}\\
+\endfoot
+\bottomrule
+\endlastfoot
+{uov-Ip-classic} & {3540971} & {7515} & {6435} & {93.5} \\
+{uov-Ip-pkc} & {4170749} & {7515} & {192411} & {91.4} \\
+{uov-Ip-pkc+skc} & {3807119} & {352621} & {192411} & {94.8} \\
+{uov-Is-classic} & {9916182} & {13070} & {12986} & {92.2} \\
+{uov-Is-pkc} & {11922375} & {13070} & {284379} & {94.8} \\
+{uov-Is-pkc+skc} & {11027933} & {843885} & {284379} & {90.8} \\
+{uov-III-pkc} & {18221241} & {19285} & {823108} & {97.5} \\
+{uov-III-pkc+skc} & {16727607} & {1465182} & {823108} & {96.0} \\
+{uov-V-pkc+skc} & {39066651} & {3308031} & {1921513} & {92.5} \\
+\end{longtable}
+\endgroup
+
+
+\subsection*{Ventajas}
+\begin{itemize}
+\item Operaciones aritméticas
+\item Solo se hace hash una vez
+\item Previas implementaciones en FPGA
+\end{itemize}
+
+\subsection*{Limitaciones}
+\begin{itemize}
+\item Mucho uso de memoria
+\item Clave pública grande
+\item Requiere control
+\end{itemize}
+
+\section{FAEST}
+
+\subsection*{Ventajas}
+\begin{itemize}
+\item Sin reducción gaussiana
+\item Clave pública reducida
+\item Uso de AES (ya ha sido implementado en FPGA)
+\end{itemize}
+
+\subsection*{Limitaciones}
+\begin{itemize}
+\item Alto consumo de LUT
+\item Mayor complejidad que multivariante
+\item Complejidad en el control
+\item Poca computación
+\end{itemize}
+\section{Clasificación del estudio}
+La tabla siguiente reproduce el orden de preferencia del documento de partida. La familia criptográfica se indica expresamente en lugar de utilizar la leyenda de colores original.
+
+\begingroup
+\small
+\setlength{\tabcolsep}{3pt}
+\setlength{\LTcapwidth}{\textwidth}
+\begin{longtable}{lrr}
+\caption{Clasificación de los candidatos en el estudio inicial.}\label{tab:eval-clasificacion}\\
+\toprule
+Posición & Candidato & Familia criptográfica \\
+\midrule
+\endfirsthead
+\toprule
+Posición & Candidato & Familia criptográfica \\
+\midrule
+\endhead
+\midrule
+\multicolumn{3}{r}{\small Continúa en la página siguiente.}\\
+\endfoot
+\bottomrule
+\endlastfoot
+{1º} & {QR-UOV} & {Multivariantes} \\
+{2º} & {UOV} & {Multivariantes} \\
+{3º} & {MAYO} & {Multivariantes} \\
+{4º} & {SNOVA} & {Multivariantes} \\
+{5º} & {CROSS} & {Basados en códigos} \\
+{6º} & {HAWK} & {Retículos} \\
+{7º} & {FAEST} & {Construcciones simétricas} \\
+{8º} & {PERK} & {MPC-in-the-head} \\
+{9º} & {SDitH} & {MPC-in-the-head} \\
+{10º} & {RYDE} & {MPC-in-the-head} \\
+{11º} & {Mirath} & {MPC-in-the-head} \\
+{12º} & {LESS} & {Basados en códigos} \\
+{13º} & {MQOM} & {MPC-in-the-head} \\
+{14º} & {SQIsign} & {Isogenías} \\
+\end{longtable}
+\endgroup
+
