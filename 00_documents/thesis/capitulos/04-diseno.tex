@@ -87,7 +87,42 @@ el procesador y la lógica programable.
     \label{fig:hawk-keygen}
 \end{figure}
 
+En un primer análisis, se determinan las implementaciones que hay que realizar:
+\begin{enumerate}
+    \item Generación de una semilla aleatoria mediante una fuente criptográficamente segura (PS)
+    \item Regeneración de los polinomios $f$ y $g$ a partir de la semilla (PS)
+    \item Comprobación de invertibilidad (PS)
+    \item Cálculo de normas y comprobación de cotas (PS)
+    \item Cálculo de polinomios adjuntos (PS)
+    \item Resolución de la ecuación NTRU (PS)
+    \item Funciones de codificación (PS)
+    \item Cálculo del hash de la clave pública mediante SHAKE256 (PS)
+\end{enumerate}
 
+La generación de claves se realiza íntegramente en el procesador. 
+Cuando alguna de las comprobaciones falla, 
+el algoritmo descarta el candidato y reinicia el proceso. 
+Esto introduce un número variable de iteraciones y 
+complica el control de una implementación en lógica programable. 
+Por ello, se reservan los recursos lógicos disponibles 
+para acelerar la firma y la verificación.
+
+\subsubsection{Generación de la firma}
+
+La figura~\ref{fig:hawk-sign} reproduce el algoritmo de generación
+de firmas \texttt{HawkSign} de la especificación de HAWK
+\cite[p.~28, algoritmo~15]{hawk-spec-2025}. Sus pasos se utilizan
+como referencia para describir la distribución de tareas entre
+el procesador y la lógica programable.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth,height=0.73\textheight,keepaspectratio]{hawk-sign.pdf}
+    \caption{Generación de una firma HAWK mediante \texttt{HawkSign}.
+    Fuente: algoritmo 15 de la especificación de HAWK, versión 1.1
+    \cite[p.~28]{hawk-spec-2025}.}
+    \label{fig:hawk-sign}
+\end{figure}
 
 \subsection{Arquitectura del sistema}
 
