@@ -344,5 +344,59 @@ entre los polinomios originales y los polinomios adjuntos.
 
 Se comprueba que el polinomio sea invertible
 módulo $p_1$ y $p_2$, siendo ambos números primos fijos.
-Si algunas de las comprobaciones falla, se descarta el candidato.
+Si alguna de las comprobaciones falla, se descarta el candidato.
+
+Después, se comprueba que el término constante del inverso del polinomio
+$q_{00}$ no supere la cota máxima $\beta_0$ establecida en
+la especificación para el grado $n$. Si se supera
+esta cota se descarta el candidato. Para realizar la comprobación
+se utiliza la función \texttt{hawk\_check\_q00\_beta}.
+
+A continuación, se resuelve la ecuación NTRU. Esto es obtener los
+polinomios $F$ y $G$ que resuelven la ecuación NTRU $fG-gF=1$.
+En un primer momento, se intentó implementar un resolutor recursivo, 
+dividiendo el grado $n$ entre 2 en cada nivel 
+y reconstruyendo la solución al regresar de la recursión.
+
+Sin embargo, esta implementación no fue posible por su complejidad.
+Por ello se optó por incluir una implementación de la biblioteca NTRUGen~\cite{ntrugen}
+mediante la función \texttt{towersolver}.
+
+Si el resolutor no obtiene valores de $F$ y $G$ válidos,
+se descarta el candidato y se reinicia el proceso. 
+A continuación, se comprueba si el valor absoluto de los coeficientes
+supera el límite fijado de 127. En caso de superarse, se descarta el candidato
+y se reinicia la generación.
+
+Mediante los nuevos polinomios obtenidos por la ecuación NTRU,
+se obtiene el polinomio $q_{01} = F f^{*} + G g^{*}$. Los polinomios
+adjuntos se habían calculado previamente para el cálculo de $q_{00}$.
+Para el cálculo de $q_{11} = F F^{*} + G G^{*}$, se necesita calcular
+los polinomios adjuntos de $F$ y $G$.
+
+A continuación, se comprueba que el valor absoluto de los
+coeficientes de $q_{11}$ con índice mayor que cero sea
+estrictamente menor que $2^{\mathrm{high}_{11}}$, según
+los parámetros de HAWK para el grado $n$. 
+Si algún coeficiente alcanza o supera este límite, 
+se descarta el candidato y se reinicia la generación.
+
+La clave pública se obtiene a partir de la función
+\texttt{EncodePublic} que transforma los polinomios $q_{00}$ y $q_{01}$
+en una secuencia de bits. Para reducir su tamaño se almacena la primera mitad de $q_{00}$.
+La segunda mitad puede reconstruirse a partir de la propiedad de autoadjunción.
+Posteriormente, se comprimen los coeficientes mediante Golomb-Rice. 
+
+Después, se añaden ceros hasta completar la longitud establecida para la clave pública 
+y se empaquetan los datos en bytes. Si no se satisfacen las condiciones
+de codificación, se descarta el candidato y se reinicia la generación de claves.
+
+A continuación, se calcula el hash de la clave pública mediante \texttt{shake256}.
+Previo a calcular la clave privada se empaquetan $F \bmod 2$ y $G \bmod 2$ en bytes.
+Para obtener la clave privada se realiza la siguiente concatenación:
+\[
+\mathrm{priv} = \mathrm{kgseed} \,\|\, (F \bmod 2)
+\,\|\, (G \bmod 2) \,\|\, \mathrm{hpub}.
+\]
+
 
