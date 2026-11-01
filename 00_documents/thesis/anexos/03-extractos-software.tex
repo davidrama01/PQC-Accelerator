@@ -1,0 +1,166 @@
+\chapter{Extractos de la implementación software}
+\label{anexo:extractos-software}
+\begingroup
+\singlespacing
+
+Este anexo recoge una selección de funciones representativas de cada
+archivo de \texttt{05\_software/src}. Los extractos son documentales:
+omiten cabeceras, declaraciones o funciones auxiliares y no constituyen
+unidades de compilación independientes. Las omisiones se indican en cada
+listado. Los cuerpos seleccionados conservan las operaciones y las
+comprobaciones del código fuente, salvo los bloques resumidos explícitamente
+mediante comentarios. Las bibliotecas externas de NTRUGen no se reproducen.
+
+El extracto de \texttt{keygen.c} se recoge en el listado~\ref{lst:keygen}.
+
+\section{Generación de firmas}
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Extracto documental de \texttt{hawk\_sign.c}.},
+    label={lst:extracto-hawk-sign},
+    tabsize=4
+]{listados/hawk_sign_extracto.c}
+
+\clearpage
+\section{Verificación de firmas}
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Extracto documental de \texttt{hawk\_verify.c}.},
+    label={lst:extracto-hawk-verify},
+    tabsize=4
+]{listados/hawk_verify_extracto.c}
+
+\clearpage
+\section{Comunicación con el acelerador}
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Extracto documental de \texttt{hawk\_fpga.c}.},
+    label={lst:extracto-hawk-fpga},
+    tabsize=4
+]{listados/hawk_fpga_extracto.c}
+
+\clearpage
+\section{Generación de aleatoriedad}
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Extracto documental de \texttt{Rnd.c}.},
+    label={lst:extracto-rnd},
+    tabsize=4
+]{listados/Rnd_extracto.c}
+
+\clearpage
+\section{Regeneración de polinomios}
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Extracto documental de \texttt{regenerate.c}.},
+    label={lst:extracto-regenerate},
+    tabsize=4
+]{listados/regenerate_extracto.c}
+
+\clearpage
+\section{Muestreo}
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Extracto documental de \texttt{sampler\_sign.c}.},
+    label={lst:extracto-sampler-sign},
+    tabsize=4
+]{listados/sampler_sign_extracto.c}
+
+\clearpage
+\section{SHAKE256}
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Extracto documental de \texttt{shake256.c}.},
+    label={lst:extracto-shake256},
+    tabsize=4
+]{listados/shake256_extracto.c}
+
+\clearpage
+\section{Codificación}
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Extracto documental de \texttt{encode.c}.},
+    label={lst:extracto-encode},
+    tabsize=4
+]{listados/encode_extracto.c}
+
+\clearpage
+\section{Decodificación}
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Extracto documental de \texttt{decode.c}.},
+    label={lst:extracto-decode},
+    tabsize=4
+]{listados/decode_extracto.c}
+
+\clearpage
+\section{Operaciones auxiliares}
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Extracto documental de \texttt{basic.c}.},
+    label={lst:extracto-basic},
+    tabsize=4
+]{listados/basic_extracto.c}
+
+\clearpage
+\section{Transformada NTT}
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Extracto documental de \texttt{ntt\_transform.c}.},
+    label={lst:extracto-ntt-transform},
+    tabsize=4
+]{listados/ntt_transform_extracto.c}
+
+\clearpage
+\section{Transformada FFT}
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Extracto documental de \texttt{fft\_transform.c}.},
+    label={lst:extracto-fft-transform},
+    tabsize=4
+]{listados/fft_transform_extracto.c}
+
+\clearpage
+\section{Resolución NTRU}
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Extracto documental de \texttt{towersolver.c}.},
+    label={lst:extracto-towersolver},
+    tabsize=4
+]{listados/towersolver_extracto.c}
+
+\clearpage
+\section{Selección de parámetros}
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Extracto documental de \texttt{hawk\_params.c}.},
+    label={lst:extracto-hawk-params},
+    tabsize=4
+]{listados/hawk_params_extracto.c}
+
+\clearpage
+\section{Programa de pruebas}
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Extracto documental de \texttt{helloworld.c}.},
+    label={lst:extracto-helloworld},
+    tabsize=4
+]{listados/helloworld_extracto.c}
+
+\endgroup
+

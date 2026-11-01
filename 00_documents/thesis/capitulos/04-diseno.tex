@@ -256,3 +256,93 @@ Para la firma y la verificación intervienen el PS y la PL, con el siguiente flu
     \item El procesador comprueba la finalización de las
     transferencias y de la operación.
 \end{enumerate}
+
+\subsection{Implementación de la generación de claves}
+
+La generación de las claves se implementa íntegramente en software,
+no es necesario comunicarse con la lógica programable mediante el DMA.
+La función \texttt{keygen} implementa las funciones necesarias para
+generar el par de claves y se reinicia en caso de no cumplir
+con las condiciones establecidas.
+
+El listado~\ref{lst:keygen} muestra un extracto simplificado de la función
+\texttt{keygen}. Se omiten las declaraciones de variables y se resumen
+mediante comentarios las conversiones, los cálculos polinómicos y el
+empaquetado de datos. Se conservan las principales llamadas y las
+condiciones de reinicio; el extracto no constituye código compilable.
+
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Extracto simplificado de la función \texttt{keygen}.},
+    label={lst:keygen},
+    basicstyle=\ttfamily\footnotesize,
+    frame=single,
+    tabsize=4
+]{listados/keygen_extracto.c}
+
+El listado~\ref{lst:keygen} contiene las principales implementaciones
+del algoritmo. Se ha utilizado una etiqueta denominada \texttt{restart}
+para denotar el incumplimiento de algún requisito y por ende
+la generación de un nuevo candidato.
+
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Extracto simplificado de la función \texttt{Rnd}.},
+    label={lst:rnd},
+    basicstyle=\ttfamily\footnotesize,
+    frame=single,
+    tabsize=4
+]{listados/Rnd_extracto.c}
+
+El listado~\ref{lst:rnd} muestra un extracto simplificado de la función
+\texttt{Rnd}. Se omiten includes y variables globales. 
+Se conservan las principales llamadas; el extracto no constituye código compilable.
+
+Para simplificar la implementación y permitir la reproducibilidad, se envían 32 bytes fijos
+por UART durante las pruebas. Para un uso criptográfico real, 
+se debe enviar una semilla procedente de una fuente criptográficamente segura. 
+En ambos casos, el procedimiento permite obtener las 
+claves privada y pública para firmar y verificar.
+
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Extracto simplificado de la función \texttt{RegenerateFG}.},
+    label={lst:regen},
+    basicstyle=\ttfamily\footnotesize,
+    frame=single,
+    tabsize=4
+]{listados/regenerate_extracto.c}
+
+El listado~\ref{lst:regen} muestra un extracto simplificado de la función
+\texttt{RegenerateFG}. Se omiten includes y comentarios extensos. 
+Se conservan las principales llamadas; el extracto no constituye código compilable.
+
+Esta función busca generar los polinomios $f$ y $g$ a partir de la semilla \texttt{kgseed}.
+Para generar la secuencia de bits se utiliza \texttt{shake256x4}.
+Cada coeficiente se calcula sumando un grupo de
+$b=n/64$ bits y restando $b/2$.
+Este método permite generar los coeficientes a partir de una semilla reducida.
+Una misma semilla reconstruye siempre los mismos polinomios.
+
+A continuación, se determina si los polinomios $f$ y $g$ son
+invertibles en módulo 2. Para ello, se comprueba que la suma de
+los coeficientes de cada polinomio sea impar.
+Si alguno de los dos no es invertible, se descarta el candidato.
+
+Tras confirmar que los polinomios son invertibles,
+se calcula la norma cuadrática, esto es la suma de los cuadrados
+de los coeficientes de ambos polinomios. Este valor debe ser
+superior a la cota mínima $2n\sigma_{\mathrm{krec}}^2$ establecida
+por la especificación. En caso de no superar esta cota, se descarta el candidato.
+
+A continuación, se calculan los polinomios adjuntos mediante la función \texttt{reciprocal}.
+Se emplean para calcular $q_{00} = f f^{*} + g g^{*}$ mediante la multiplicación polinómica
+entre los polinomios originales y los polinomios adjuntos.
+
+Se comprueba que el polinomio sea invertible
+módulo $p_1$ y $p_2$, siendo ambos números primos fijos.
+Si algunas de las comprobaciones falla, se descarta el candidato.
+

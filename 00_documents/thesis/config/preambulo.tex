@@ -35,6 +35,29 @@
 \renewcommand{\headrulewidth}{0pt}
 \fancypagestyle{plain}{\fancyhf{}\fancyfoot[L]{\small\thesisauthor}\fancyfoot[R]{\thepage}\renewcommand{\headrulewidth}{0pt}}
 \lstset{basicstyle=\ttfamily\small,breaklines=true,numbers=left,numberstyle=\tiny,numbersep=8pt,columns=fullflexible,keepspaces=true,showstringspaces=false,captionpos=b,tabsize=2}
+\definecolor{codeblue}{HTML}{245A9C}
+\definecolor{codegreen}{HTML}{39734D}
+\definecolor{codepurple}{HTML}{79529C}
+\definecolor{codebackground}{HTML}{F5F7FA}
+\definecolor{codeborder}{HTML}{D8DFE8}
+\lstdefinestyle{hawkcode}{
+    basicstyle=\ttfamily\footnotesize,
+    keywordstyle=\color{codeblue}\bfseries,
+    commentstyle=\color{codegreen},
+    stringstyle=\color{codepurple},
+    backgroundcolor=\color{codebackground},
+    rulecolor=\color{codeborder},
+    numberstyle=\tiny\color{gray},
+    frame=single,
+    framerule=0.4pt,
+    framesep=6pt,
+    xleftmargin=1.8em,
+    xrightmargin=0.6em,
+    numbersep=10pt,
+    morekeywords={uint8_t,uint32_t,int32_t,int64_t},
+    aboveskip=1em,
+    belowskip=1em
+}
 % Las notas son guías de redacción: eliminarlas al completar cada apartado.
 \newcommand{\pendiente}[1]{\par\noindent\textit{Pendiente: #1}\par}
 \setlength{\parindent}{0pt}
