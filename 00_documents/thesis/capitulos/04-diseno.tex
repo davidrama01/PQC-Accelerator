@@ -148,14 +148,56 @@ la comprobación de la norma. Esta distribución permite acelerar las operacione
 mediante el uso de recursos DSP de la lógica programable.
 
 El algoritmo repite el intento cuando la norma supera la cota establecida
- o cuando falla la codificación de la firma. 
- En ambos casos, vuelve a la generación de \texttt{salt}, 
- sin repetir la decodificación de la clave privada 
- ni la regeneración de los polinomios $f$ y $g$.
+o cuando falla la codificación de la firma. 
+En ambos casos, vuelve a la generación de \texttt{salt}, 
+sin repetir la decodificación de la clave privada 
+ni la regeneración de los polinomios $f$ y $g$.
+
+\subsubsection{Verificación de la firma}
+
+La figura~\ref{fig:hawk-verify} reproduce el algoritmo de verificación
+de firmas \texttt{HawkVerify} de la especificación de HAWK
+\cite[p.~36, algoritmo~20]{hawk-spec-2025}. Sus pasos se utilizan
+como referencia para describir la distribución de tareas entre
+el procesador y la lógica programable.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth,height=0.73\textheight,keepaspectratio]{hawk-verify.pdf}
+    \caption{Verificación de una firma HAWK mediante \texttt{HawkVerify}.
+    Fuente: algoritmo 20 de la especificación de HAWK, versión 1.1
+    \cite[p.~36]{hawk-spec-2025}.}
+    \label{fig:hawk-verify}
+\end{figure}
+
+En un primer análisis se determinan las implementaciones que hay que realizar:
+\begin{enumerate}
+    \item Decodificación de la firma y la clave pública (PS)
+    \item Cálculo de hash de la clave pública mediante SHAKE256 (PS)
+    \item Cálculo de $M$ mediante SHAKE256 sobre la concatenación del mensaje y el hash de la clave pública (PS)
+    \item Generación de $h_0$ y $h_1$ mediante SHAKE256 (PS)
+    \item Cálculo de $w_1$ (PS)
+    \item Comprobación de \texttt{sym-break} (PL)
+    \item Cálculo de $w_0$ mediante \texttt{RebuildS0} (PL)
+    \item Cálculo de $r_1$ y $r_2$ mediante \texttt{PolyQNorm} (PL)
+    \item Comprobación de igualdad entre $r_1$ y $r_2$ y de divisibilidad de $r_1$ entre $n$ (PL)
+    \item Comparación de $r_1/n$ con la cota superior (PL)
+\end{enumerate}
+
+Para la verificación de la firma se distribuyeron las tareas análogamente
+a la generación de firmas. Los principales cálculos aritméticos
+se realizan en lógica programable mientras que las codificaciones, decodificaciones
+y cálculos de hash se realizan en el procesador. El cálculo de $w_1$ se realizó
+en procesador para reducir el movimiento de datos entre procesador y
+lógica programable.
+
+En este caso, no se da ninguna condición para tener que reiniciar el procesamiento
+en caso de error. Se reporta al procesador si la firma es válida o no según el
+resultado de las operaciones.
 
 \subsection{Arquitectura del sistema}
 
-En esta sección, se discutirá los elementos que conforma la arquitectura
+En esta sección se describen los elementos que conforman la arquitectura
 general del sistema, la interfaz de comunicación empleada y la gestión de tareas.
 
 La figura~\ref{fig:diagrama-bloques-hawk} muestra el diagrama de bloques
@@ -189,25 +231,28 @@ el controlador DMA y las interconexiones AXI.
 
 El sistema consta de los siguientes componentes:
 \begin{enumerate}
-    \item Procesador: Es la parte diferencial que lo convierte en un SoC.
-    El procesador permite hacer ciertas tareas en software que serían muy costosas de realizar en hardware.
-    \item Acelerador: El acelerador es el diseño en hardware. Mientras que el procesador se encarga
-    de tareas secuenciales, el acelerador es capaz de realizar diversas tareas al mismo tiempo.
-    \item DMA: Es el controlador del sistema. Gestiona las transferencias entre el procesador
-    y el acelerador. Permite enviar un conjunto de datos sin congestionar al procesador.
-    \item Interconexiones: Para establecer el flujo de datos y de control es necesario utilizar 
-    un bus de comunicación común. Para ello se necesitan árbitros que gestionan la prioridad y
-    el envío y recepción de datos y señales de control.
+    \item Sistema de procesamiento Zynq: Ejecuta las funciones de software del acelerador,
+    inicia las transferencias de datos, configura las IP y escribe y lee registros de la lógica programable.
+    \item Acelerador HAWK: Implementa la lógica programable del acelerador HAWK para la firma
+    y verificación de la firma. Controla el camino de datos y el camino de control.
+    \item DMA: Realiza las transferencias de datos entre la memoria DDR y el acelerador.
+    El canal MM2S lee datos de memoria y los envía al acelerador. 
+    El canal S2MM recibe los datos del acelerador y los escribe en memoria.
+    \item Interconexiones: Proporcionan los canales de comunicación para el control y transferencia de datos.
+    Hay dos interconexiones. La interconexión de control permite al procesador comunicarse
+    con los registros del DMA y el acelerador. 
+    La interconexión de memoria conecta el DMA con el sistema de procesamiento para acceder a la memoria DDR.
 \end{enumerate}
 
-\section{Representación de datos y memorias}
-\pendiente{Definir formatos, anchuras, organización de memoria y orden de coeficientes.}
-
-\section{Bloques de cálculo}
-\pendiente{Describir los módulos realmente implementados y justificar las decisiones de diseño.}
-
-\section{Unidad de control}
-\pendiente{Documentar las máquinas de estados, las dependencias y las condiciones de finalización.}
-
-\section{Interfaces e integración hardware y software}
-\pendiente{Definir puertos, protocolos, registros y flujo de ejecución según el diseño final.}
+En el proceso de generación de claves no interviene el DMA, ya que
+el procesamiento se realiza únicamente en PS. 
+Para la firma y la verificación intervienen el PS y la PL, con el siguiente flujo general:
+\begin{enumerate}
+    \item El procesador configura el acelerador y el DMA
+    \item El procesador inicia las transferencias necesarias
+    mediante los canales MM2S y, cuando corresponde, S2MM.
+    \item El DMA transfiere los datos entre la memoria DDR
+    y el acelerador.
+    \item El procesador comprueba la finalización de las
+    transferencias y de la operación.
+\end{enumerate}
