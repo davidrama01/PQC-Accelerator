@@ -2,12 +2,139 @@
 \label{ch:design}
 
 \section{Estudio y selección de aceleradores criptográficos}
-Previo al diseño del acelerador, se realizó un estudio con los diferentes aceleradores post-cuánticos
-propuestos por NIST en la ronda 2 ya que otros aceleradores de rondas previas podían haber sido desestimados
-por vulnerabilidades. En esta primera fase se ha realizado un análisis para su implementación parcial o 
-total de los diferentes algoritmos propuestos.
+Previo al diseño del acelerador, se realizó un estudio 
+de los esquemas de firma poscuántica que participaban en la segunda
+ronda del proceso de firmas adicionales del NIST. 
+En esta primera fase se realizó un análisis para su 
+implementación parcial o total de los diferentes 
+algoritmos propuestos.
+El estudio completo se recoge en el apéndice~\ref{anexo:aceleradores}.
 
-Como criterio de selección no se utilizó la seguridad del algoritmo
+
+Para el estudio se emplearon los siguientes criterios de selección:
+\begin{enumerate}
+    \item Viabilidad de implementación.
+    \item Complejidad de las operaciones.
+    \item Consumo de recursos y memoria.
+    \item Complejidad del control.
+    \item Disponibilidad de implementaciones y documentación.
+    \item Potencial de aceleración.
+    \item Adecuación a una arquitectura hardware-software.
+    \item Carga de hashing.
+\end{enumerate}
+
+
+El orden de preferencia de los candidatos se recoge en la
+tabla~\ref{tab:eval-clasificacion} del
+apéndice~\ref{anexo:aceleradores}.
+
+Los esquemas multivariantes como UOV, consistente en la resolución de problemas matriciales,
+fueron considerados inicialmente. 
+Sin embargo, se descartaron por el elevado consumo de BRAM y LUT en algunas de las implementaciones revisadas.
+
+Aunque para el esquema HAWK no se identificaron diseños totales o parciales en FPGA en la revisión realizada, 
+se realizó un análisis cualitativo en función de las prestaciones necesarias para el mismo. 
+Por tanto, uno de los resultados que se analizarán será la utilización de recursos del acelerador de HAWK.
+
+HAWK se seleccionó por la ausencia de operaciones en coma flotante, reduciendo su complejidad en hardware. 
+Posteriormente, se tuvieron en consideración las limitaciones existentes del SoC PYNQ-Z2.
+Para esta implementación se optó por un diseño dual entre procesador y lógica programable.
+En futuros capítulos se detallará la distribución de tareas en función de las prestaciones.
+
+La selección y diseño de HAWK se realizó con anterioridad al conocimiento de la retirada de HAWK.
+Sin embargo, no compromete la finalidad del proyecto ya que se busca la viabilidad de implementar
+algoritmos de firma poscuántica en lógica programable frente a un diseño completo en procesador.
+
+\section{Arquitectura general del acelerador}
+\label{sec:arquitectura-acelerador}
+
+\subsection{Alcance del acelerador}
+
+El sistema desarrollado contempla los procesos de generación
+de claves, generación de firmas y verificación de firmas
+descritos en el capítulo~\ref{ch:background}.
+En este capítulo se presenta la distribución de tareas
+entre el procesador y la lógica programable.
+
+El esquema criptográfico consta de tres funcionalidades:
+\begin{enumerate}
+    \item Generación de claves: produce una clave privada,
+    que debe mantenerse secreta, y una clave pública, que puede compartirse.
+    \item Generación de firmas: utiliza la clave privada
+    para generar una firma asociada a un mensaje.
+    \item Verificación de firmas: utiliza la clave pública
+    para comprobar la validez de la firma asociada al mensaje.
+    Una firma inválida se rechaza.
+\end{enumerate}
+Se han implementado estos tres procesos en el sistema.
+A continuación se determina la gestión de tareas para cada proceso.
+
+\subsection{Distribución de tareas}
+\subsubsection{Generación de claves}
+
+La figura~\ref{fig:hawk-keygen} reproduce el algoritmo de generación
+de claves \texttt{HawkKeyGen} de la especificación de HAWK
+\cite[p.~24, algoritmo~13]{hawk-spec-2025}. Sus pasos se utilizan
+como referencia para describir la distribución de tareas entre
+el procesador y la lógica programable.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth,height=0.73\textheight,keepaspectratio]{hawk-keygen.pdf}
+    \caption{Generación del par de claves de HAWK mediante \texttt{HawkKeyGen}.
+    Fuente: algoritmo 13 de la especificación de HAWK, versión 1.1
+    \cite[p.~24]{hawk-spec-2025}.}
+    \label{fig:hawk-keygen}
+\end{figure}
+
+
+
+\subsection{Arquitectura del sistema}
+
+En esta sección, se discutirá los elementos que conforma la arquitectura
+general del sistema, la interfaz de comunicación empleada y la gestión de tareas.
+
+La figura~\ref{fig:diagrama-bloques-hawk} muestra el diagrama de bloques
+del sistema, que integra el procesador Zynq, el acelerador HAWK,
+el controlador DMA y las interconexiones AXI.
+
+\begin{figure}[H]
+    \centering
+    \begingroup
+    \setlength{\unitlength}{0.000534188\textwidth}
+    \linethickness{1pt}
+    \begin{picture}(1872,288)
+        \put(0,0){\includegraphics[width=\textwidth]{diagrama-bloques-hawk.png}}
+        \color{violet}\put(44,113){\framebox(245,144){}}
+        \color{orange!85!black}\put(345,40){\framebox(239,150){}}
+        \color{teal}\put(636,53){\framebox(278,148){}}
+        \color{magenta}\put(969,69){\framebox(253,140){}}
+        \color{blue}\put(1289,51){\framebox(422,199){}}
+    \end{picture}
+    \endgroup
+    \par\smallskip
+    {\small
+    \textcolor{violet}{\textbf{1. Interconexión de control}}\quad
+    \textcolor{orange!85!black}{\textbf{2. Acelerador HAWK}}\quad
+    \textcolor{teal}{\textbf{3. DMA}}\par
+    \textcolor{magenta}{\textbf{4. Interconexión de memoria}}\quad
+    \textcolor{blue}{\textbf{5. Sistema de procesamiento Zynq}}\par}
+    \caption{Diagrama de bloques del sistema de aceleración de HAWK en Vivado.}
+    \label{fig:diagrama-bloques-hawk}
+\end{figure}
+
+El sistema consta de los siguientes componentes:
+\begin{enumerate}
+    \item Procesador: Es la parte diferencial que lo convierte en un SoC.
+    El procesador permite hacer ciertas tareas en software que serían muy costosas de realizar en hardware.
+    \item Acelerador: El acelerador es el diseño en hardware. Mientras que el procesador se encarga
+    de tareas secuenciales, el acelerador es capaz de realizar diversas tareas al mismo tiempo.
+    \item DMA: Es el controlador del sistema. Gestiona las transferencias entre el procesador
+    y el acelerador. Permite enviar un conjunto de datos sin congestionar al procesador.
+    \item Interconexiones: Para establecer el flujo de datos y de control es necesario utilizar 
+    un bus de comunicación común. Para ello se necesitan árbitros que gestionan la prioridad y
+    el envío y recepción de datos y señales de control.
+\end{enumerate}
 
 \section{Representación de datos y memorias}
 \pendiente{Definir formatos, anchuras, organización de memoria y orden de coeficientes.}
