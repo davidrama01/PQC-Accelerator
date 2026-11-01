@@ -124,6 +124,35 @@ el procesador y la lógica programable.
     \label{fig:hawk-sign}
 \end{figure}
 
+En un primer análisis se determinan las implementaciones que hay que realizar:
+\begin{enumerate}
+    \item Decodificación de clave privada (PS)
+    \item Regeneración de los polinomios $f$ y $g$ a partir de la semilla (PS)
+    \item Cálculo de $M$ mediante SHAKE256 sobre la concatenación del mensaje y el hash de la clave pública (PS)
+    \item Generación de \texttt{salt} mediante SHAKE256 (PS)
+    \item Generación de $h_0$ y $h_1$ mediante SHAKE256 (PS)
+    \item Cálculo de $t_0$ y $t_1$ a partir de polinomios binarios (PL)
+    \item Generación de la semilla y muestreo de los polinomios $x_0$ y $x_1$ mediante \texttt{SamplerSign} (PS)
+    \item Cálculo y comprobación de la norma (PS)
+    \item Cálculo de $w_1$ (PL)
+    \item Comprobación de \texttt{sym-break} (PL)
+    \item Cálculo de $s_1$ (PL)
+    \item Cálculo de la firma mediante codificación de $s_1$ y \texttt{salt} (PS)
+\end{enumerate}
+
+Para la generación de firmas, se ejecutan en lógica programable los cálculos
+de los polinomios $t_0$, $t_1$, $w_1$ y $s_1$ así como la comprobación y corrección
+de la ruptura de simetría. Por otra parte, el procesador realiza las tareas de
+codificación, hashing, muestreo y generación de variables aleatorias así como
+la comprobación de la norma. Esta distribución permite acelerar las operaciones aritméticas
+mediante el uso de recursos DSP de la lógica programable.
+
+El algoritmo repite el intento cuando la norma supera la cota establecida
+ o cuando falla la codificación de la firma. 
+ En ambos casos, vuelve a la generación de \texttt{salt}, 
+ sin repetir la decodificación de la clave privada 
+ ni la regeneración de los polinomios $f$ y $g$.
+
 \subsection{Arquitectura del sistema}
 
 En esta sección, se discutirá los elementos que conforma la arquitectura
