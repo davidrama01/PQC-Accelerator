@@ -267,27 +267,6 @@ architecture rtl of hawk_verify is
     end component;
 
     -- Verification diagnostics: select these preserved nets in Set Up Debug.
-    attribute MARK_DEBUG : string;
-    attribute MARK_DEBUG of error_verify : signal is "TRUE";
-    attribute MARK_DEBUG of sym_break : signal is "TRUE";
-    attribute MARK_DEBUG of error_rebuild : signal is "TRUE";
-    attribute MARK_DEBUG of error_rebuild_core : signal is "TRUE";
-    attribute MARK_DEBUG of norm_p1_failed : signal is "TRUE";
-    attribute MARK_DEBUG of norm_p2_failed : signal is "TRUE";
-    attribute MARK_DEBUG of norm_p1_error : signal is "TRUE";
-    attribute MARK_DEBUG of norm_p2_error : signal is "TRUE";
-    attribute MARK_DEBUG of error_threshold : signal is "TRUE";
-    attribute MARK_DEBUG of current_state : signal is "TRUE";
-    attribute MARK_DEBUG of done_rebuild : signal is "TRUE";
-    attribute MARK_DEBUG of rebuild_finished : signal is "TRUE";
-    attribute MARK_DEBUG of norm_p1_done : signal is "TRUE";
-    attribute MARK_DEBUG of norm_p2_done : signal is "TRUE";
-    attribute MARK_DEBUG of norm_p1_finished : signal is "TRUE";
-    attribute MARK_DEBUG of norm_p2_finished : signal is "TRUE";
-    attribute MARK_DEBUG of ready_sym_break : signal is "TRUE";
-    attribute MARK_DEBUG of r1 : signal is "TRUE";
-    attribute MARK_DEBUG of r2 : signal is "TRUE";
-    attribute MARK_DEBUG of threshold_value : signal is "TRUE";
 
 begin
     c_h0_words <= num_samples / g_data_width;

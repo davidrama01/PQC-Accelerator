@@ -222,12 +222,6 @@ architecture rtl of polyqnorm is
     signal w1_wea   : std_logic_vector(0 downto 0);
 
     -- Verification diagnostics: select these preserved nets in Set Up Debug.
-    attribute MARK_DEBUG : string;
-    attribute MARK_DEBUG of state : signal is "TRUE";
-    attribute MARK_DEBUG of input_range_errors : signal is "TRUE";
-    attribute MARK_DEBUG of input_invalid : signal is "TRUE";
-    attribute MARK_DEBUG of error_flag : signal is "TRUE";
-    attribute MARK_DEBUG of done_reg : signal is "TRUE";
 
 begin
     reduce_start <= '1' when state = ST_INV_REDUCE or state = ST_INV_SQUARE_REDUCE or state = ST_REDUCE_D or state = ST_REDUCE_E or state = ST_REDUCE_QE or state = ST_REDUCE_EADJ or state = ST_REDUCE_DW else '0';

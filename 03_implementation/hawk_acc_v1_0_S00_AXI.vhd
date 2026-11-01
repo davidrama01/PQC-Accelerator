@@ -156,10 +156,6 @@ architecture arch_imp of hawk_acc_v1_0_S00_AXI is
 	signal aw_en	: std_logic;
 
     -- Verification diagnostics: select these preserved nets in Set Up Debug.
-    attribute MARK_DEBUG : string;
-    attribute MARK_DEBUG of verify_done : signal is "TRUE";
-    attribute MARK_DEBUG of verify_error : signal is "TRUE";
-    attribute MARK_DEBUG of verify_status : signal is "TRUE";
 
 begin
 	-- I/O Connections assignments
