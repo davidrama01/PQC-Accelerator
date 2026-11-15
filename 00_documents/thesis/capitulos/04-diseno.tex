@@ -257,6 +257,146 @@ Para la firma y la verificación intervienen el PS y la PL, con el siguiente flu
     transferencias y de la operación.
 \end{enumerate}
 
+\subsubsection{Interfaz del acelerador}
+
+Para diseñar la interfaz del acelerador se deben conocer
+las interfaces de los componentes con los que se comunica.
+El acelerador se comunica con un DMA que tiene una interfaz AXI4-Stream.
+Por tanto, los datos entran y salen del acelerador mediante esta interfaz.
+AXI4-Stream proporciona una transferencia unidireccional desde una interfaz 
+maestra hacia una esclava. En este diseño, la interfaz maestra del acelerador 
+envía datos al DMA para almacenarlos en DDR, mientras que la interfaz esclava 
+recibe del DMA los datos leídos de DDR.
+
+Sin embargo, no es suficiente con dos interfaces AXI4-Stream. Se necesita conocer
+el estado de las transacciones desde el procesador. Para ello se define una interfaz
+AXI4-Lite mediante la cual se pueden escribir y leer registros. Tanto para indicar
+al acelerador que habilite la recepción de datos como para indicar al procesador que
+el procesamiento ha finalizado.
+
+La IP empaquetada \texttt{hawk\_acc\_v1\_0} define estas interfaces. Esta IP
+es el módulo de nivel superior del acelerador 
+que se comunica directamente con otras IP del diseño.
+
+La figura~\ref{fig:hawk-acc-interfaces} muestra las tres interfaces
+externas de la IP del acelerador en Vivado.
+
+\begin{figure}[H]
+    \centering
+    \begingroup
+    \setlength{\unitlength}{0.001197\textwidth}
+    \linethickness{1pt}
+    \begin{picture}(543,313)
+        \put(0,0){\includegraphics[width=543\unitlength]{hawk-acc-interfaces.png}}
+        \color{violet}\put(100,173){\framebox(145,35){}}
+        \color{teal}\put(100,122){\framebox(165,35){}}
+        \color{orange!85!black}\put(298,147){\framebox(148,35){}}
+    \end{picture}
+    \endgroup
+    \par\smallskip
+    {\small
+    \textcolor{violet}{\textbf{S00\_AXI: AXI4-Lite, control y estado}}\par
+    \textcolor{teal}{\textbf{S00\_AXIS: AXI4-Stream, entrada de datos desde el DMA}}\par
+    \textcolor{orange!85!black}{\textbf{M00\_AXIS: AXI4-Stream, salida de datos hacia el DMA}}\par}
+    \caption{Interfaces externas de la IP del acelerador HAWK en Vivado.}
+    \label{fig:hawk-acc-interfaces}
+\end{figure}
+
+Las figuras~\ref{fig:fsm-axis-recepcion} y~\ref{fig:fsm-axis-transmision}
+muestran las máquinas de estados de las interfaces AXI4-Stream de entrada
+y salida, respectivamente. En los diagramas, $H$ representa la aceptación
+de una palabra de datos, que se produce cuando \texttt{TVALID} y
+\texttt{TREADY} están activos simultáneamente en un flanco ascendente
+del reloj.
+
+El reset activo bajo lleva ambas máquinas al estado \texttt{IDLE}.
+En recepción, \texttt{TREADY} se activa en \texttt{RECEIVE\_WORD}
+cuando la IP puede aceptar datos. En transmisión, las señales
+\texttt{TVALID}, \texttt{TDATA} y \texttt{TLAST} proceden directamente
+de la IP; la máquina de estados registra el inicio y el final del paquete.
+La aceptación de la última palabra genera un pulso de un ciclo en \texttt{eot}.
+
+La señal \texttt{sot} indica el inicio de una transferencia.
+Cuando la señal \texttt{TLAST} se activa, indica que el último dato se está
+enviando por el bus AXI. Si \texttt{TVALID} no está activo al mismo tiempo
+que \texttt{TREADY} el dato no es aceptado.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth,height=0.78\textheight,keepaspectratio]{fsm-axis-recepcion.pdf}
+    \caption{Máquina de estados de la interfaz de recepción \texttt{S00\_AXIS}.}
+    \label{fig:fsm-axis-recepcion}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth,height=0.78\textheight,keepaspectratio]{fsm-axis-transmision.pdf}
+    \caption{Máquina de estados de la interfaz de transmisión \texttt{M00\_AXIS}.}
+    \label{fig:fsm-axis-transmision}
+\end{figure}
+
+La interfaz AXI4-Lite permite configurar el acelerador y consultar su
+estado mediante registros de 32 bits. La tabla~\ref{tab:registros-axi-lite}
+recoge los registros funcionales y sus desplazamientos en bytes respecto
+a la dirección base de la IP.
+
+\begin{table}[H]
+    \centering
+    \caption{Registros funcionales de la interfaz AXI4-Lite del acelerador.}
+    \label{tab:registros-axi-lite}
+    \begingroup
+    \small
+    \renewcommand{\arraystretch}{1.15}
+    \begin{tabularx}{\textwidth}{@{}l l c X@{}}
+        \toprule
+        Dirección & Señales asociadas & Uso & Función \\
+        \midrule
+        \texttt{0x00} & \texttt{start\_slv} & W &
+        Escribir 1 en el bit 0 genera el pulso \texttt{start\_slv},
+        habilita la recepción y borra el estado de verificación anterior.
+        El registro vuelve automáticamente a cero. \\
+        \texttt{0x04} & \shortstack[l]{\texttt{done\_slv}\\\texttt{done\_mst}} & R &
+        Bit 0: \texttt{done\_slv}, fin de recepción.
+        Bit 1: \texttt{done\_mst}, fin de transmisión.
+        Reflejan pulsos, no indicadores persistentes. \\
+        \texttt{0x08} & \texttt{start\_mst} & R &
+        Bit 0: refleja la señal interna \texttt{start\_mst}.
+        No es una orden de inicio escrita por el procesador. \\
+        \texttt{0x0C} & \shortstack[l]{\texttt{verify\_done}\\\texttt{verify\_error}} & R &
+        Bit 1: resultado disponible. Bit 0: error de verificación.
+        Con el bit 1 activo, el bit 0 igual a 0 indica firma válida
+        y el valor 1 indica rechazo. Las señales se capturan en
+        el registro persistente \texttt{verify\_status}. \\
+        \texttt{0x10} & \texttt{mode} & R/W &
+        Bit 0: 0 selecciona firma y 1 selecciona verificación.
+        Tras el reset se selecciona firma. \\
+        \texttt{0x14} & \texttt{num\_samples} & R/W &
+        Admite 256, 512 y 1024; el valor inicial es 512.
+        Una escritura con otro valor conserva la configuración anterior. \\
+        \bottomrule
+    \end{tabularx}
+    \endgroup
+\end{table}
+
+El modo y el grado se configuran antes de habilitar la recepción de datos.
+El modo debe mantenerse durante toda la operación y el grado se captura
+al recibir \texttt{start\_slv}. El resultado de verificación permanece
+disponible hasta un nuevo inicio o el reset de AXI4-Lite.
+Los registros restantes, entre \texttt{0x18} y \texttt{0x7C},
+se dejan libres en caso de ser necesarios.
+
+De los tres procesos implementados en el SoC, dos tienen
+implementación parcial en lógica programable. Para determinar qué proceso
+se está ejecutando se utiliza el registro \texttt{mode}, que indica
+si se está generando una firma o si se está verificando.
+Este registro es relevante para establecer una sincronización
+con el procesador.
+
+El módulo \texttt{hawk\_acc} utiliza la señal \texttt{mode}
+para seleccionar la ruta de procesamiento. Con valor 0,
+dirige las transferencias al módulo \texttt{hawk\_sign};
+con valor 1, al módulo \texttt{hawk\_verify}.
+
 \subsection{Implementación de la generación de claves}
 
 La generación de las claves se implementa íntegramente en software,
@@ -309,7 +449,7 @@ claves privada y pública para firmar y verificar.
 \lstinputlisting[
     style=hawkcode,
     language=C,
-    caption={Extracto simplificado de la función \texttt{RegenerateFG}.},
+    caption={Extracto simplificado de la función \texttt{Regeneratefg}.},
     label={lst:regen},
     basicstyle=\ttfamily\footnotesize,
     frame=single,
@@ -317,7 +457,7 @@ claves privada y pública para firmar y verificar.
 ]{listados/regenerate_extracto.c}
 
 El listado~\ref{lst:regen} muestra un extracto simplificado de la función
-\texttt{RegenerateFG}. Se omiten includes y comentarios extensos. 
+\texttt{Regeneratefg}. Se omiten includes y comentarios extensos. 
 Se conservan las principales llamadas; el extracto no constituye código compilable.
 
 Esta función busca generar los polinomios $f$ y $g$ a partir de la semilla \texttt{kgseed}.
@@ -400,3 +540,128 @@ Para obtener la clave privada se realiza la siguiente concatenación:
 \]
 
 \subsection{Implementación de la generación de firmas}
+
+Las tareas de la generación de firmas están repartidas entre
+el procesador y la lógica programable. Por ello, es necesario
+configurar el DMA, establecer una comunicación y coordinar
+la ejecución del acelerador y comprobar su finalización con el procesador.
+La función \texttt{hawk\_sign} coordina las tareas ejecutadas en el procesador 
+y las llamadas al acelerador. La librería \texttt{hawk\_fpga}
+incluye la configuración del DMA y la gestión de transferencias de datos.
+
+El listado~\ref{lst:hawk_sign} muestra un extracto simplificado de la función
+\texttt{hawk\_sign}. Se omiten las declaraciones de variables y se resumen
+mediante comentarios las conversiones, los cálculos polinómicos y el
+empaquetado de datos. Se conservan las principales llamadas y las
+condiciones de reinicio; el extracto no constituye código compilable.
+
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Extracto simplificado de la función \texttt{hawk\_sign}.},
+    label={lst:hawk_sign},
+    basicstyle=\ttfamily\footnotesize,
+    frame=single,
+    tabsize=4
+]{listados/hawk_sign_extracto.c}
+
+La función \texttt{DecodePrivate} realiza la operación inversa a
+\texttt{EncodePrivate}. En lugar de concatenar la semilla, los polinomios
+binarios y el hash de la clave pública, los separa en variables independientes.
+Esta función separa y copia los campos, y comprueba que los punteros sean
+válidos y la longitud sea la esperada.
+
+Los polinomios $f$ y $g$ mediante la función
+\texttt{RegenerateFG}, mostrada en el listado~\ref{lst:regen},
+utilizando la semilla \texttt{kgseed} recuperada de la clave privada.
+
+El siguiente paso es generar el reto mediante diversos hash. Mediante uno
+de los hash mencionados se genera la variable salt. En esta sección del algoritmo,
+se añade la etiqueta \texttt{restart}. Al igual que en la generación de claves,
+indica el punto a partir del cual se debe regenerar la firma si se dan las condiciones
+establecidas.
+
+Los algoritmos mencionados previamente son realizados íntegramente en procesador.
+A continuación, se realiza el cálculo de $t_0$ y $t_1$ a partir de los
+polinomios generados. Para ello, es necesario enviar estos polinomios desde
+el procesador hacia la lógica programable.
+
+La figura~\ref{fig:hawk-sign-bloques} muestra el camino de datos
+del módulo VHDL \texttt{hawk\_sign} y las conexiones entre sus bloques.
+
+La figura~\ref{fig:fsm-hawk-sign} muestra el camino de control
+del módulo VHDL \texttt{hawk\_sign} y la propia FSM.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth,keepaspectratio]{hawk-sign-bloques.pdf}
+    \caption{Diagrama de bloques del módulo VHDL \texttt{hawk\_sign}.}
+    \label{fig:hawk-sign-bloques}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth,height=0.88\textheight,keepaspectratio]{fsm-hawk-sign.pdf}
+    \caption{Máquina de estados del módulo VHDL \texttt{hawk\_sign}.}
+    \label{fig:fsm-hawk-sign}
+\end{figure}
+
+Los datos recibidos en la figura~\ref{fig:hawk-sign-bloques} son almacenados en registros
+si se trata de polinomios binarios, o en memorias para los polinomios $f$, $g$, $x_0$ y $x_1$.
+Mediante las instancias \texttt{calculate\_t} se obtienen $t_0$ y $t_1$ en paralelo. 
+El camino de control coordina la transferencia de $t_0$ y $t_1$ a través de AXI4-Stream.
+
+Tras realizar las operaciones necesarias en el procesador, se calcula $w_1$,
+se comprueba su simetría y se obtiene $s_1$.
+Una vez obtenido $s_1$, se envía al procesador para codificar la firma.
+
+La FSM mostrada en la figura~\ref{fig:fsm-hawk-sign} está formada por tres elementos:
+
+\begin{enumerate}
+    \item Estados: Fase en la que se encuentra el sistema.
+    \item Condiciones: El sistema transiciona entre estados cuando se cumplen
+    las condiciones estipuladas. Condicionan el tiempo de ejecución de la FSM.
+    \item Acciones: Al cumplirse condiciones pueden ejecutarse acciones como habilitar
+    escrituras o lecturas.
+\end{enumerate}
+
+Los estados de la FSM se pueden agrupar en cuatro tipos:
+\begin{enumerate}
+    \item IDLE: Es el estado de espera inicial del sistema. Es el estado de recuperación
+    en caso de que se transicione a un estado inválido. Si desde cualquiera
+    de los estados se realiza un reset, transiciona a este estado. Además el último estado
+    transiciona a este estado.
+    \item Escritura: No siempre es posible procesar el dato al instante en el que
+    aparece mediante el bus de datos. Se pueden necesitar varios datos en un mismo
+    instante temporal. Para ello es necesario almacenar los datos hasta que puedan
+    procesarse. Existen dos tipos de datos que se escriben. Los polinomios
+    binarios se almacenan en registros, lo que simplifica la gestión de memorias.
+    Los polinomios no binarios $f$, $g$, $x_0$ y $x_1$ se almacenan en memoria interna
+    debido al mayor volumen de datos.
+    \item Lectura: En el estado \texttt{READ\_T} se leen los polinomios $t_0$ y $t_1$
+    almacenados en registros y se transmiten al procesador. El envío avanza cuando
+    el receptor está preparado y finaliza cuando acepta la última palabra.
+    \item Cálculo: Mediante señales de inicio, disponibilidad de resultados y fin
+    se coordina la ejecución de los módulos de cálculo. En el estado
+    \texttt{CALC\_S1} también se transmite el resultado al procesador.
+\end{enumerate}
+
+La figura~\ref{fig:calculate-t-bloques} muestra la organización interna
+ del módulo \texttt{calculate\_t}, utilizado para obtener $t_0$ y $t_1$.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth,keepaspectratio]{calculate-t-bloques.pdf}
+    \caption{Diagrama de bloques del módulo \texttt{calculate\_t}.}
+    \label{fig:calculate-t-bloques}
+\end{figure}
+
+El cálculo de $t_0$ y $t_1$ utiliza dos instancias en paralelo
+del módulo mostrado en la figura~\ref{fig:calculate-t-bloques}.
+Cada instancia contiene dos multiplicadores polinómicos módulo 2
+que trabajan en paralelo. Una vez obtenidos ambos resultados,
+se realiza una operación XOR y se almacena en un registro el polinomio binario generado. 
+La señal \texttt{done} indica a la FSM
+de \texttt{hawk\_sign} que el resultado está disponible.
+\pendiente{Describir la implementación definitiva del módulo \texttt{poly\_mul\_mod2} cuando se complete su modificación.}
+
