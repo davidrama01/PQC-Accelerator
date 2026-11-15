@@ -665,3 +665,148 @@ La señal \texttt{done} indica a la FSM
 de \texttt{hawk\_sign} que el resultado está disponible.
 \pendiente{Describir la implementación definitiva del módulo \texttt{poly\_mul\_mod2} cuando se complete su modificación.}
 
+Tras recibir los polinomios $t_0$ y $t_1$ en el procesador, se ejecuta la función \texttt{SamplerSign}
+que calcula los polinomios $x_0$ y $x_1$.
+
+El listado~\ref{lst:sampler-sign-muestreo} muestra el fragmento que obtiene
+cada coeficiente mediante las tablas de muestreo, selecciona su paridad
+y aplica el signo. Se omiten la expansión de la semilla, los bucles externos
+y la extracción de los bits utilizados; el fragmento no es compilable
+de forma independiente.
+
+\lstinputlisting[
+    style=hawkcode,
+    language=C,
+    caption={Selección de magnitud, paridad y signo en \texttt{SamplerSign}.},
+    label={lst:sampler-sign-muestreo},
+    tabsize=4
+]{listados/sampler_sign_muestreo.c}
+
+El muestreo gaussiano discreto se realiza en tres partes:
+\begin{enumerate}
+    \item A partir de un valor pseudoaleatorio $c$ y los umbrales definidos
+    en las tablas \texttt{HAWK\_T0} y \texttt{HAWK\_T1}, se cuenta el número
+    de umbrales que superan dicho valor, almacenado en $v_0$ y $v_1$.
+    \item Cada bit de $t_0$ y $t_1$ determina la paridad del
+    coeficiente correspondiente de $x_0$ y $x_1$. Si el bit
+    es 0, se utiliza $2v_0$; si es 1, se utiliza $2v_1+1$.
+    \item Mediante un bit adicional pseudoaleatorio se define
+    si el resultado final es positivo o negativo, almacenado en $x_0$ y $x_1$.
+\end{enumerate}
+
+A continuación, se calcula la norma cuadrática del par $(x_0,x_1)$ para comprobar
+que el muestreo discreto gaussiano no supera el límite definido en la especificación.
+Si se supera la cota $8n\sigma_{\mathrm{verify}}^2$, 
+se reinicia la generación de la firma desde la etiqueta \texttt{restart}.
+
+Los polinomios $x_0$ y $x_1$ se envían al acelerador.
+El módulo \texttt{calculate\_w1} implementa el cálculo $w_1=fx_1-gx_0$
+utilizando los polinomios $f$ y $g$ generados previamente.
+
+La figura~\ref{fig:calculate-w1-bloques} muestra la organización interna
+del módulo \texttt{calculate\_w1}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth,keepaspectratio]{calculate-w1-bloques.pdf}
+    \caption{Diagrama de bloques del módulo \texttt{calculate\_w1}.}
+    \label{fig:calculate-w1-bloques}
+\end{figure}
+
+El módulo \texttt{calculate\_w1} está formado por dos instancias
+\texttt{poly\_mul} en paralelo que calculan los productos parciales.
+Los multiplicadores generan internamente las direcciones de memoria
+de los correspondientes polinomios para los cálculos.
+
+Cuando ambos multiplicadores presentan los coeficientes correspondientes, se realiza su resta.
+Este valor resultante es almacenado mediante un registro. 
+La señal \texttt{done} indica que el coeficiente es válido y está disponible.
+
+La figura~\ref{fig:poly-mul-bloques} muestra el camino de datos y la unidad
+de control del módulo \texttt{poly\_mul}, utilizado para realizar los
+productos polinómicos.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth,keepaspectratio]{poly-mul-bloques.pdf}
+    \caption{Diagrama de bloques del módulo \texttt{poly\_mul}.}
+    \label{fig:poly-mul-bloques}
+\end{figure}
+
+El módulo \texttt{poly\_mul} realiza la multiplicación de dos polinomios
+en módulo $X^n+1$. En este módulo se generan las direcciones de memoria
+de los operandos. Estas señales se emplean en las memorias que almacenan los coeficientes
+para poder leer el dato.
+
+Tras la multiplicación de los coeficientes, un multiplexor
+selecciona el producto o su opuesto para implementar la
+reducción módulo $X^n+1$. Después, se acumulan los $n$ productos
+parciales hasta obtener un coeficiente del resultado.
+Este proceso se repite para todos los coeficientes.
+La arquitectura dispone de registros intermedios para reducir el camino crítico.
+La señal \texttt{done} se activa cuando el coeficiente calculado es válido.
+
+El módulo \texttt{sym\_break\_w1} comprueba el signo del primer coeficiente
+no nulo de $w_1$. La figura~\ref{fig:sym-break-w1-bloques} muestra
+su organización interna.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth,keepaspectratio]{sym-break-w1-bloques.pdf}
+    \caption{Diagrama de bloques del módulo \texttt{sym\_break\_w1}.}
+    \label{fig:sym-break-w1-bloques}
+\end{figure}
+
+El módulo \texttt{sym\_break\_w1} se implementa para romper
+la simetría de la firma y evitar obtener otra firma válida
+mediante un cambio de signo. Genera un bit que se utiliza
+en \texttt{calculate\_s1} para seleccionar entre conservar
+o invertir el signo de $w_1$.
+
+La figura~\ref{fig:calculate-s1-bloques} muestra la organización interna
+del módulo \texttt{calculate\_s1}, utilizado para calcular $s_1$.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth,keepaspectratio]{calculate-s1-bloques.pdf}
+    \caption{Diagrama de bloques del módulo \texttt{calculate\_s1}.}
+    \label{fig:calculate-s1-bloques}
+\end{figure}
+
+El módulo \texttt{calculate\_s1} obtiene el polinomio $s_1$ a partir
+de los polinomios $h_1$ y $w_1$ y el resultado de la ruptura de simetría.
+En función del resultado de la comprobación de simetría de $w_1$ se invertirá 
+o no el signo de cada uno de sus coeficientes. Por tanto, se pueden realizar dos operaciones:
+
+\[
+s_1 =
+\begin{cases}
+(h_1-w_1)/2, & \text{si } \texttt{sym\_break}=1,\\
+(h_1+w_1)/2, & \text{si } \texttt{sym\_break}=0.
+\end{cases}
+\]
+
+Posteriormente, se añade el coeficiente correspondiente
+del polinomio binario $h_1$ y se realiza un desplazamiento aritmético
+de un bit a la derecha para dividir entre 2, como se detalla en el algoritmo.
+El resultado se almacena en un registro y se presenta en la salida.
+
+Mediante la unidad de control, se generan las direcciones de lectura
+de los coeficientes. La señal \texttt{ready} indica que el coeficiente
+de salida es válido, mientras que \texttt{done} indica que se ha
+obtenido el último coeficiente.
+
+A continuación, se envía el polinomio calculado $s_1$ al procesador
+mediante el DMA de la misma forma que se enviaron $t_0$ y $t_1$.
+Esta transferencia se coordina mediante la FSM de \texttt{hawk\_sign}.
+
+Finalmente, la firma se obtiene mediante la función de procesador
+\texttt{EncodeSignature}. En primer lugar, se comprime el polinomio
+$s_1$ mediante la función \texttt{CompressGR}. Si la compresión falla o 
+el resultado supera el espacio disponible,
+se reinicia la generación de la firma desde la etiqueta \texttt{restart}.
+
+Si no falla, se completa la representación comprimida de $s_1$
+con ceros hasta ocupar el espacio disponible y se empaqueta en bytes.
+Para obtener la firma final, se concatena la variable \texttt{salt}
+generada previamente con esta representación.
